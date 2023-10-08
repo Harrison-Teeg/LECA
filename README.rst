@@ -1,4 +1,4 @@
-.. image:: https://github.com/Harrison-Teeg/LECA/blob/main/images/leca_logo.png
+.. image:: https://github.com/Harrison-Teeg/LECA/raw/main/images/leca_logo.png
     :width: 300
     :align: center
 
@@ -30,32 +30,17 @@ With the following python libraries:
 Installation
 ============
 
-The LECA package dependencies can be installed from the LECA package base directory with:
+The LECA package can be installed directly from source with:
 
 .. code-block:: bash
 
-   pip install -r requirements.txt
-
-The following miniconda-installation method is known to work:
-
-.. code-block:: bash
-
-   # Run these commands in LECA base directory
-   conda create -n leca-env python=3.8
-   conda activate leca-env
-   pip install -r requirements.txt
-
-From this directory simply run a jupyter notebook and import the LECA modules with:
-
-.. code:: python
-
-   from LECA import prep, fit, analyze
+   pip install git+https://github.com/Harrison-Teeg/LECA.git
 
 
 Envisaged LECA Work Flow
 ========================
 
-.. image:: https://github.com/Harrison-Teeg/LECA/blob/main/images/LECA_overview.png
+.. image:: https://github.com/Harrison-Teeg/LECA/raw/main/images/LECA_overview.png
    :width: 600
    :align: center
 

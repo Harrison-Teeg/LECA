@@ -1,0 +1,12 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+.mypy*
+
+# Notebooks checkpoints
+**.ipynb_checkpoints
+
+# Vim Sessions
+Session.vim

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LECA - The Liquid Electrolyte Composition Analysis Package &mdash; Liquid Electrolyte Composition Analysis 0.2 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Synthetic 1D LECA Introduction" href="source/synthetic_introduction.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="#" class="icon icon-home"> Liquid Electrolyte Composition Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="source/synthetic_introduction.html">Synthetic 1D LECA Introduction</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Package API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="source/LECA.html">LECA API</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Liquid Electrolyte Composition Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home"></a> &raquo;</li>
+      <li>LECA - The Liquid Electrolyte Composition Analysis Package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  
+<style>
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
+</style>
+<section id="leca-the-liquid-electrolyte-composition-analysis-package">
+<h1>LECA - The Liquid Electrolyte Composition Analysis Package<a class="headerlink" href="#leca-the-liquid-electrolyte-composition-analysis-package" title="Permalink to this heading"></a></h1>
+<p>The Liquid Electrolyte Composition Analysis (LECA) package creates
+a simplified Jupyter-Notebook <a class="footnote-reference brackets" href="#id8" id="id1">1</a> based workflow for applying
+Scikit-Learn <a class="footnote-reference brackets" href="#id9" id="id2">2</a> machine learning regression models to predict
+liquid electrolyte behavior based on composition.</p>
+</section>
+<section id="requirements">
+<h1>Requirements<a class="headerlink" href="#requirements" title="Permalink to this heading"></a></h1>
+<p>Python 3.7+, Jupyter Notebook 6.4.11+</p>
+<dl class="simple">
+<dt>With the following python libraries:</dt><dd><ul class="simple">
+<li><p>Scikit-learn 1.3.1+</p></li>
+<li><p>NumPy 1.22.3+</p></li>
+<li><p>Matplotlib 3.5.1+</p></li>
+<li><p>Pandas 1.4.2+</p></li>
+<li><p>SciPy 1.8.1+</p></li>
+<li><p>Uncertainties 3.1.7+</p></li>
+<li><p>MAPIE 0.5.6</p></li>
+<li><p>HDBSCAN 0.8.28+</p></li>
+<li><p>Seaborn 0.11.2+</p></li>
+<li><p>GPyOpt 1.2.6+</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<p>The LECA package dependencies can be installed from the LECA package base directory with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip install -r requirements.txt
+</pre></div>
+</div>
+<p>The following miniconda-installation method is known to work:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run these commands in LECA base directory</span>
+conda create -n leca-env <span class="nv">python</span><span class="o">=</span><span class="m">3</span>.8
+conda activate leca-env
+pip install -r requirements.txt
+</pre></div>
+</div>
+<p>From this directory simply run a jupyter notebook and import the LECA modules with:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">LECA</span> <span class="kn">import</span> <span class="n">prep</span><span class="p">,</span> <span class="n">fit</span><span class="p">,</span> <span class="n">analyze</span>
+</pre></div>
+</div>
+</section>
+<section id="envisaged-leca-work-flow">
+<h1>Envisaged LECA Work Flow<a class="headerlink" href="#envisaged-leca-work-flow" title="Permalink to this heading"></a></h1>
+<a class="reference internal image-reference" href="../../source/images/LECA_overview.png"><img alt="../../source/images/LECA_overview.png" class="align-center" src="../../source/images/LECA_overview.png" style="width: 600px;" /></a>
+<section id="data-import-and-feature-engineering">
+<h2>Data Import and Feature Engineering<a class="headerlink" href="#data-import-and-feature-engineering" title="Permalink to this heading"></a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><p>Import Data from JSON or CSV files</p></li>
+<li><p>Visualize dataset with feature overview and interactive data visualizer</p></li>
+<li><p>Identify and filter outlier values using HDBSCAN <a class="footnote-reference brackets" href="#id10" id="id3">3</a></p></li>
+<li><p>Manually filter nonsense-values with user defined explicit boundaries</p></li>
+<li><p>Combine repeated measurements and record statistical behavior (measurement noise)</p></li>
+<li><p>Generate surrogate models for Arrhenius behavior or other user defined values</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="initialize-regression-models-and-compare-results">
+<h2>Initialize Regression Models and Compare Results<a class="headerlink" href="#initialize-regression-models-and-compare-results" title="Permalink to this heading"></a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><p>Data splitting / Scaling automatically handled</p></li>
+<li><dl class="simple">
+<dt>Declare regression models to implement (supports N-dimensional feature/objective space)</dt><dd><ul>
+<li><p>Linear Regression (LR)</p></li>
+<li><p>Gaussian Process Regression (GPR) (supports Isotropic/Anisotropic RBF, Matern, RQ, Custom kernel)</p></li>
+<li><p>Neural Network (NN)</p></li>
+<li><p>Random Forest (RF)</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p>Hyperparameter Optimization for NN and RF with GPyOpt <a class="footnote-reference brackets" href="#id11" id="id4">4</a></p></li>
+<li><p>Customized Polynomial selection for LR <a class="footnote-reference brackets" href="#id12" id="id5">5</a></p></li>
+<li><p>Cross-validated scoring of models and visualization to provide simple overview of comparative model performance</p></li>
+<li><p>Ensemble based uncertainty estimation for LR / NN / RF models using MAPIE <a class="footnote-reference brackets" href="#id13" id="id6">6</a></p></li>
+<li><p>Validate performance of models on unseen validation data</p></li>
+</ul>
+</div></blockquote>
+</section>
+<section id="analyze-objective-function-for-compositions">
+<h2>Analyze Objective Function for Compositions<a class="headerlink" href="#analyze-objective-function-for-compositions" title="Permalink to this heading"></a></h2>
+<blockquote>
+<div><ul class="simple">
+<li><p>Interactive widgets to visualize objective function and model uncertainty for various compositions</p></li>
+<li><p>Return optimal composition to maximize/minimize objective function optimization</p></li>
+<li><p>Ranked Batch Mode Active Learning module based on RBMAL approach of Cordoso et al. <a class="footnote-reference brackets" href="#id14" id="id7">7</a></p></li>
+</ul>
+</div></blockquote>
+</section>
+</section>
+<section id="areas-of-further-development">
+<h1>Areas of Further Development<a class="headerlink" href="#areas-of-further-development" title="Permalink to this heading"></a></h1>
+<p>Multi-Objective Optimization: Identifying Pareto-fronts for multiple-objectives for electrolyte composition (e.g. electrochemical stability, conductivity, etc.)</p>
+</section>
+<section id="references">
+<h1>References<a class="headerlink" href="#references" title="Permalink to this heading"></a></h1>
+<dl class="footnote brackets">
+<dt class="label" id="id8"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>[9] Brian E. Granger and Fernando Pérez. “Jupyter: Thinking and Storytelling With Code and Data”. In: Computing in Science &amp; Engineering 23.2 (2021), pp. 7–14. doi: 10.1109/MCSE.2021.3059263.</p>
+</dd>
+<dt class="label" id="id9"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><ol class="upperalpha simple" start="6">
+<li><p>Pedregosa et al. “Scikit-learn: Machine Learning in Python”. In: Journal of Machine Learning Research 12 (2011), pp. 2825–2830.</p></li>
+</ol>
+</dd>
+<dt class="label" id="id10"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dd><p>Leland McInnes, John Healy, and Steve Astels. “hdbscan: Hierarchical density based clustering”. In: The Journal of Open Source Software 2.11 (2017), p. 205.</p>
+</dd>
+<dt class="label" id="id11"><span class="brackets"><a class="fn-backref" href="#id4">4</a></span></dt>
+<dd><p>The GPyOpt authors. GPyOpt: A Bayesian Optimization framework in python. 2016. url: <a class="reference external" href="http://github.com/SheffieldML/GPyOpt">http://github.com/SheffieldML/GPyOpt</a>.</p>
+</dd>
+<dt class="label" id="id12"><span class="brackets"><a class="fn-backref" href="#id5">5</a></span></dt>
+<dd><p>Anand Narayanan Krishnamoorthy et al. “Data-Driven Analysis of High-Throughput Experiments on Liquid Battery Electrolyte Formulations: Unraveling the Impact of Composition on Conductivity**”. In: Chemistry–Methods 2.9 (2022), e202200008. doi: <a class="reference external" href="https://doi.org/10.1002/cmtd.202200008">https://doi.org/10.1002/cmtd.202200008</a>.</p>
+</dd>
+<dt class="label" id="id13"><span class="brackets"><a class="fn-backref" href="#id6">6</a></span></dt>
+<dd><p>MAPIE - Model Agnostic Prediction Interval Estimator. Version: 0.4.1. url: <a class="reference external" href="https://mapie.readthedocs.io/en/latest/index.html">https://mapie.readthedocs.io/en/latest/index.html</a> (visited on 08/24/2022).</p>
+</dd>
+<dt class="label" id="id14"><span class="brackets"><a class="fn-backref" href="#id7">7</a></span></dt>
+<dd><p>Thiago N.C. Cardoso et al. “Ranked batch-mode active learning”. In: Information Sciences 379 (2017) pp. 313-337. doi: <a class="reference external" href="https://doi.org/10.1016/j.ins.2016.10.037">https://doi.org/10.1016/j.ins.2016.10.037</a></p>
+</dd>
+</dl>
+</section>
+<section id="acknowledgments">
+<h1>Acknowledgments<a class="headerlink" href="#acknowledgments" title="Permalink to this heading"></a></h1>
+<p>This project has received funding from the European Union’s Horizon 2020 research and innovation program under grants agreement No 957189 (BIG-MAP) and No 957213 (BATTERY2030+).</p>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+<section id="links">
+<h1>Links<a class="headerlink" href="#links" title="Permalink to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+</ul>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="source/synthetic_introduction.html" class="btn btn-neutral float-right" title="Synthetic 1D LECA Introduction" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Harrison Martin.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

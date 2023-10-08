@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LECA.prep.interactive_data_visualize &mdash; Liquid Electrolyte Composition Analysis 0.2 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="LECA.prep.outlier_filter" href="LECA.prep.outlier_filter.html" />
+    <link rel="prev" title="LECA.prep.import_data" href="LECA.prep.import_data.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Liquid Electrolyte Composition Analysis
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Introduction:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../synthetic_introduction.html">Synthetic 1D LECA Introduction</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Package API:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../LECA.html">LECA API</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../LECA.html#data-preparation">Data Preparation</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.arrhenius.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.arrhenius</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.combine_cut.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.combine_cut</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.data_visualize.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.data_visualize</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.direct_sample_arrhenius.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.direct_sample_arrhenius</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.feature_overview.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.feature_overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.filter_fn.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.filter_fn</a></li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.import_data.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.import_data</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.interactive_data_visualize</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#LECA.prep.interactive_data_visualize"><code class="docutils literal notranslate"><span class="pre">interactive_data_visualize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="LECA.prep.outlier_filter.html"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.outlier_filter</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../LECA.html#regression-workflow">Regression WorkFlow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../LECA.html#model-analysis">Model Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../LECA.html#leca-custom-estimators">LECA Custom Estimators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../LECA.html#notebook-utils">Notebook Utils</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Liquid Electrolyte Composition Analysis</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../LECA.html">LECA API</a> &raquo;</li>
+      <li><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.interactive_data_visualize</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/generated/LECA.prep.interactive_data_visualize.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  
+<style>
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
+</style>
+<section id="leca-prep-interactive-data-visualize">
+<h1><code class="xref py py-mod docutils literal notranslate"><span class="pre">LECA.prep</span></code>.interactive_data_visualize<a class="headerlink" href="#leca-prep-interactive-data-visualize" title="Permalink to this heading"></a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="LECA.prep.interactive_data_visualize">
+<span class="sig-prename descclassname"><span class="pre">LECA.prep.</span></span><span class="sig-name descname"><span class="pre">interactive_data_visualize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fig</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Figure</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">features</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">show_axes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">highlight_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">DataFrame</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#LECA.prep.interactive_data_visualize" title="Permalink to this definition"></a></dt>
+<dd><p>Visualize dataset with a 2d or 3d plot. Special formulation to support integration with notebook interactive widgets. Plots the distribution of measurement points within the min-max range of each selected feature.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<code class="docutils literal notranslate"><span class="pre">DataFrame</span></code>) – Dataframe of experimental measurements.</p></li>
+<li><p><strong>fig</strong> (<code class="docutils literal notranslate"><span class="pre">plt.Figure</span></code>) – Figure object passed to contain plots.</p></li>
+<li><p><strong>features</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – List of all features.</p></li>
+<li><p><strong>show_axes</strong> (<em>List</em><em>[</em><em>str</em><em>]</em>) – List of features to use as axes for the data distribution plot.</p></li>
+<li><p><strong>highlight_data</strong> (Optional[<code class="docutils literal notranslate"><span class="pre">DataFrame</span></code>]) – <p>Optional DataFrame of measurements to highlight within the plot (shown as red triangles).</p>
+<p>Default value <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">ipywidgets</span> <span class="kn">import</span> <span class="n">interact</span><span class="p">,</span> <span class="n">widgets</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">IPython.display</span> <span class="kn">import</span> <span class="n">display</span>
+<span class="o">%</span><span class="n">matplotlib</span> <span class="n">notebook</span>
+
+<span class="c1"># Define which DataFrames to use for included/excluded data</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">sliced_df</span>
+<span class="n">cut_df</span> <span class="o">=</span> <span class="n">cutoff_df</span>
+
+<span class="c1"># Initialize plt.Figure object</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span><span class="mi">4</span><span class="p">))</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">()</span>
+
+<span class="c1"># Define and show interactive widgets</span>
+<span class="n">X_slider</span><span class="o">=</span><span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">features</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;X&#39;</span><span class="p">)</span>
+<span class="n">Y_slider</span><span class="o">=</span><span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="n">features</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Y&#39;</span><span class="p">)</span>
+<span class="n">Z_slider</span><span class="o">=</span><span class="n">widgets</span><span class="o">.</span><span class="n">Dropdown</span><span class="p">(</span><span class="n">options</span><span class="o">=</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">+</span><span class="n">features</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s1">&#39;Z (optional)&#39;</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">X_slider</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">Y_slider</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">Z_slider</span><span class="p">)</span>
+
+<span class="c1"># Function call to update plot</span>
+<span class="k">def</span> <span class="nf">data_vis</span><span class="p">(</span><span class="n">change</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="n">X_feature</span> <span class="o">=</span> <span class="n">X_slider</span><span class="o">.</span><span class="n">value</span>
+    <span class="n">Y_feature</span> <span class="o">=</span> <span class="n">Y_slider</span><span class="o">.</span><span class="n">value</span>
+    <span class="n">Z_feature</span> <span class="o">=</span> <span class="n">Z_slider</span><span class="o">.</span><span class="n">value</span>
+    <span class="k">if</span> <span class="n">Z_feature</span><span class="p">:</span>
+        <span class="n">prep</span><span class="o">.</span><span class="n">interactive_data_visualize</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">fig</span><span class="p">,</span> <span class="n">features</span><span class="p">,</span> <span class="n">show_axes</span><span class="o">=</span><span class="p">[</span><span class="n">X_feature</span><span class="p">,</span> <span class="n">Y_feature</span><span class="p">,</span> <span class="n">Z_feature</span><span class="p">],</span> <span class="n">highlight_data</span><span class="o">=</span><span class="n">cut_df</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">prep</span><span class="o">.</span><span class="n">interactive_data_visualize</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">fig</span><span class="p">,</span> <span class="n">features</span><span class="p">,</span> <span class="n">show_axes</span><span class="o">=</span><span class="p">[</span><span class="n">X_feature</span><span class="p">,</span> <span class="n">Y_feature</span><span class="p">],</span> <span class="n">highlight_data</span><span class="o">=</span><span class="n">cut_df</span><span class="p">)</span>
+
+<span class="c1"># Make button to plot data</span>
+<span class="n">btn</span><span class="o">=</span><span class="n">widgets</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Run&quot;</span><span class="p">)</span>
+<span class="n">display</span><span class="p">(</span><span class="n">btn</span><span class="p">)</span>
+<span class="n">btn</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">data_vis</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<div style='clear:both'></div></section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="LECA.prep.import_data.html" class="btn btn-neutral float-left" title="LECA.prep.import_data" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="LECA.prep.outlier_filter.html" class="btn btn-neutral float-right" title="LECA.prep.outlier_filter" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Harrison Martin.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

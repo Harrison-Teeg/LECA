@@ -1,3 +1,7 @@
+.. image:: https://github.com/Harrison-Teeg/LECA/blob/main/images/leca_logo.png
+    :width: 300
+    :align: center
+
 LECA - The Liquid Electrolyte Composition Analysis Package
 ==========================================================
 
@@ -51,7 +55,7 @@ From this directory simply run a jupyter notebook and import the LECA modules wi
 Envisaged LECA Work Flow
 ========================
 
-.. image:: ../../source/images/LECA_overview.png
+.. image:: https://github.com/Harrison-Teeg/LECA/blob/main/images/LECA_overview.png
    :width: 600
    :align: center
 

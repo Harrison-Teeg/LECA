@@ -18,6 +18,9 @@ MAINTAINER_EMAIL = (
 )
 PYTHON_REQUIRES = ">=3.8"
 PACKAGES = find_packages()
+SETUP_REQUIRES = [
+        "Cython==0.29.36" # Seems to be necessary to build RTD (hdbscan dependency)
+    ]
 INSTALL_REQUIRES = [
         "numpy>=1.22.3",
         "pandas>=1.4.2",
@@ -26,7 +29,6 @@ INSTALL_REQUIRES = [
         "seaborn>=0.11.2",
         "matplotlib>=3.5.1",
         "scikit-learn>=1.3.1",
-        "Cython==0.29.36",
         "hdbscan>=0.8.28",
         "GPyOpt>=1.2.6",
         "mapie==0.6.5",
@@ -71,6 +73,7 @@ setup(
     maintainer_email=MAINTAINER_EMAIL,
     packages=PACKAGES,
     python_requires=PYTHON_REQUIRES,
+    setup_requires=SETUP_REQUIRES,
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     classifiers=CLASSIFIERS,

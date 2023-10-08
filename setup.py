@@ -16,7 +16,7 @@ MAINTAINER = "Harrison Martin"
 MAINTAINER_EMAIL = (
     "h_mart05@uni-muenster.de"
 )
-PYTHON_REQUIRES = ">=3.7"
+PYTHON_REQUIRES = ">=3.8"
 PACKAGES = find_packages()
 INSTALL_REQUIRES = [
         "numpy>=1.22.3",
@@ -26,10 +26,10 @@ INSTALL_REQUIRES = [
         "seaborn>=0.11.2",
         "matplotlib>=3.5.1",
         "scikit-learn>=1.3.1",
+        "Cython==0.29.36",
         "hdbscan>=0.8.28",
         "GPyOpt>=1.2.6",
         "mapie==0.6.5",
-        "Cython==0.29.30",
         "packaging"
     ]
 EXTRAS_REQUIRE = {

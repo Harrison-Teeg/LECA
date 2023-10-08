@@ -29,6 +29,7 @@ INSTALL_REQUIRES = [
         "hdbscan>=0.8.28",
         "GPyOpt>=1.2.6",
         "mapie==0.6.5",
+        "Cython==0.29.30",
         "packaging"
     ]
 EXTRAS_REQUIRE = {
@@ -54,7 +55,6 @@ CLASSIFIERS = [
     "Operating System :: POSIX",
     "Operating System :: Unix",
     "Operating System :: MacOS",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10"

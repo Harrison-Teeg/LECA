@@ -1,0 +1,8 @@
+matplotlib
+numpydoc
+pandas
+sphinx
+nbsphinx
+sphinx-gallery
+sphinx_rtd_theme
+typing_extensions

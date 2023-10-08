@@ -19,7 +19,7 @@ MAINTAINER_EMAIL = (
 PYTHON_REQUIRES = ">=3.8"
 PACKAGES = find_packages()
 SETUP_REQUIRES = [
-        "Cython==0.29.36" # Seems to be necessary to build RTD (hdbscan dependency)
+        "Cython==0.29.36"
     ]
 INSTALL_REQUIRES = [
         "numpy>=1.22.3",

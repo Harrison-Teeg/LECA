@@ -734,7 +734,7 @@ def arrhenius(
             - float (beta_0),
             - List[str] (feature list),
             - List[str] (S0 S1 S2 objective functions list),
-            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std and 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
+            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, 'Activation Energy' and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
     """
         ## Create groups for Arrhenius fit by grouping by features - temp
     rng = np.random.default_rng(seed=random_state)
@@ -952,7 +952,7 @@ def direct_sample_arrhenius(
             - float (beta_0),
             - List[str] (feature list),
             - List[str] (S0 S1 S2 objective functions list),
-            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std and 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
+            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, 'Activation Energy' and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
     """
     rng = np.random.default_rng(seed=random_state)
 

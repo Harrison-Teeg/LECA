@@ -1409,6 +1409,7 @@ def visualize_arrhenius_fit(
         colors: Optional[List[str]] = None,
         y_label: Optional[str] = None,
         individual_data_df:Optional[pd.DataFrame]=None,
+        confidence:float = 1.0,
         save_loc: Union[str, bool] = False,
         save_idx: Union[int, float, str]=0,
         title: Optional[str] = None
@@ -1468,6 +1469,13 @@ def visualize_arrhenius_fit(
                 no individual experimental data is plotted.
                 
                 Default value ``None``
+
+            confidence: float
+                Scalar value to multiply the estimated uncertainty. By default this value is ``1.0`` which results in the
+                plotted errorbars showing one standard-deviation. E.g. ``confidence=1.96`` would then reflect an
+                approximate 95\% confidence interval.
+
+                Default value ``1.0``
                
             save_loc : Union[str, bool]
                 Destination to save result plot (if provided as a string argument).

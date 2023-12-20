@@ -18,6 +18,7 @@ from sklearn.model_selection import train_test_split, cross_val_score
 # For type annotations
 from typing import List, Tuple, Union, Optional, Callable
 
+gas_constant = 8.31446261815324 #[J/(K*mol)]
 
 def import_data(
         json_directories: List[str] = [],
@@ -659,6 +660,7 @@ def arrhenius(
         - the data should contain a single row with the average value and deviations of repeated measurements of the objective function at each inverse temperature.
         - This function randomly perturbs the average measured value for that composition **for each inverse temperature** in the form :math:`log(perturbed) = log(objective) \\cdot (1 + random\_normal(std))` and applies the Arrhenius fit.
         - This is repeated for `n_fits` (by default 50 times). The resulting average coefficient values, their standard deviations and metrics for the quality of the fit on all measurements with this composition are returned.
+        - In addition, the activation energy for the sample (:math:`E = (S_1 \cdot R))` \[mJ/mol\], where R is the Gas Constant) is included.
     
     The Arrhenius surrogate model has the form:
 
@@ -779,6 +781,7 @@ def arrhenius(
             perturbed_coeffs['S1'].append(-1*perturb_LR.coef_[0])
             perturbed_coeffs['S2'].append(-1*perturb_LR.coef_[1])
             perturbed_coeffs['MAE'].append(mean_absolute_error(log10_perturb_y, perturb_LR.predict(X)))
+            perturbed_coeffs['R2'].append(r2_score(log10_perturb_y, perturb_LR.predict(X)))
         ## Add values under the respective coefficient names
         # Need to collapse the groups now to only return composition : S0 / S1 / S2 
         MAE = np.mean(perturbed_coeffs['MAE'])
@@ -790,7 +793,9 @@ def arrhenius(
                 'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
                 'S2': np.mean(perturbed_coeffs['S2']),
                 'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'log(MAE arrh fit)': np.log(MAE)
+                'Activation Energy': (np.mean(perturbed_coeffs['S1'])*gas_constant),
+                'log(MAE arrh fit)': np.log(MAE),
+                'R2': np.mean(perturbed_coeffs['R2'])
                 })
 
         # Calculate MAE for Arrhenius fit prediction of input samples
@@ -810,7 +815,8 @@ def arrhenius(
     arrhenius_group.remove(inverse_temp)
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'Activation Energy', 'R2',
+            'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
     data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)
@@ -873,6 +879,7 @@ def direct_sample_arrhenius(
         - the data should contain several repeated measurements of the objective function at varying inverse temperatures.
         - This function randomly selects a single measurement for that composition **for each inverse temperature** and applies the Arrhenius fit.
         - This is repeated for `n_fits` (by default 50 times). The resulting average coefficient values, their standard deviations and metrics for the quality of the fit on all measurements with this composition are returned.
+        - In addition, the activation energy for the sample (:math:`E = (S_1 \cdot R))` \[mJ/mol\], where R is the Gas Constant) is included.
     
     The Arrhenius surrogate model has the form:
 
@@ -976,7 +983,7 @@ def direct_sample_arrhenius(
         grouped_inv_temps = [group_df.loc[group_df['inverse temperature'] == inv_temp] for inv_temp in inv_temps]
 
         # Generate n_fits randomly sampled datasets to estimate S_x and uncertainties
-        perturbed_coeffs = {'S0':[],'S1':[],'S2':[], 'MAE':[]}
+        perturbed_coeffs = {'S0':[],'S1':[],'S2':[], 'MAE':[], 'R2':[]}
         for _ in range(n_fits):
             perturb_LR = LinearRegression()
 
@@ -997,6 +1004,7 @@ def direct_sample_arrhenius(
             perturbed_coeffs['S1'].append(-1*perturb_LR.coef_[0])
             perturbed_coeffs['S2'].append(-1*perturb_LR.coef_[1])
             perturbed_coeffs['MAE'].append(mean_absolute_error(log10_perturb_y, perturb_LR.predict(X)))
+            perturbed_coeffs['R2'].append(r2_score(log10_perturb_y, perturb_LR.predict(X)))
         
         # Need to collapse the groups now to only return composition : S0 / S1 / S2 
         MAE = np.mean(perturbed_coeffs['MAE'])
@@ -1008,7 +1016,9 @@ def direct_sample_arrhenius(
                 'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
                 'S2': np.mean(perturbed_coeffs['S2']),
                 'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'log(MAE arrh fit)': np.log(MAE)
+                'Activation Energy': (np.mean(perturbed_coeffs['S1'])*gas_constant),
+                'log(MAE arrh fit)': np.log(MAE),
+                'R2': np.mean(perturbed_coeffs['R2'])
                 })
 
         # Calculate MAE for Arrhenius fit prediction of input samples
@@ -1026,7 +1036,8 @@ def direct_sample_arrhenius(
 
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'Activation Energy', 'R2',
+            'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
     data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)

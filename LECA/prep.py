@@ -793,7 +793,6 @@ def arrhenius(
                 'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
                 'S2': np.mean(perturbed_coeffs['S2']),
                 'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'Activation Energy': (np.mean(perturbed_coeffs['S1'])*gas_constant),
                 'log(MAE arrh fit)': np.log(MAE),
                 'R2': np.mean(perturbed_coeffs['R2'])
                 })

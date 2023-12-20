@@ -815,7 +815,7 @@ def arrhenius(
     arrhenius_group.remove(inverse_temp)
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'Activation Energy', 'R2',
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2',
             'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
@@ -850,6 +850,7 @@ def arrhenius(
 
 
     data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
+    data['Activation Energy'] = data['S1']*gas_constant
 
     print("Upper quantile log Arrhenius error:")
     display(data.loc[data['log(MAE arrh fit)'] > data['log(MAE arrh fit)'].quantile(0.9)])
@@ -1016,7 +1017,6 @@ def direct_sample_arrhenius(
                 'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
                 'S2': np.mean(perturbed_coeffs['S2']),
                 'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'Activation Energy': (np.mean(perturbed_coeffs['S1'])*gas_constant),
                 'log(MAE arrh fit)': np.log(MAE),
                 'R2': np.mean(perturbed_coeffs['R2'])
                 })
@@ -1036,7 +1036,7 @@ def direct_sample_arrhenius(
 
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'Activation Energy', 'R2',
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2',
             'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
@@ -1070,6 +1070,7 @@ def direct_sample_arrhenius(
         plt.show()
 
     data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
+    data['Activation Energy'] = data['S1']*gas_constant
 
     print("Upper quantile Arrhenius fit error:")
     display(data.loc[data['Mean Absolute (Relative) Error'] > data['Mean Absolute (Relative) Error'].quantile(0.9)])

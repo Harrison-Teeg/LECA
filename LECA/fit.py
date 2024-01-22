@@ -362,11 +362,15 @@ class WorkFlow:
                     model.random_state = self._random_state
                 if isinstance(model, PolynomialRegression): 
                     model.fit(self.poly_X, self.y[obj])
+                elif isinstance(model, AlphaGPR): 
+                    alpha_y = pd.concat([self.y[obj], self.std[obj+'_std']],axis=1) # alphaGPR takes y as col1: objective, col2: objective_err
+                    model.fit(self.X, alpha_y)
                 else:
                     model.fit(self.X, self.y[obj])
                 self.results[obj][regr_name]['model'] = model
                 self.results[obj][regr_name]['metrics'] = False # False until scored with cross_validate
-                self.results[obj][regr_name]['uncertainty'] = False # False until estimated with estimate_uncertainty
+                if not isinstance(model, GaussianProcessRegressor):
+                    self.results[obj][regr_name]['uncertainty'] = False # False until estimated with estimate_uncertainty
             
     def add_regr(
         self, fit_name: str, regr_name: str, objective_funcs: Optional[Union[str, List[str]]] = None, **hyperparameters
@@ -448,13 +452,14 @@ class WorkFlow:
                         store['model'] = GaussianProcessRegressor(**hyperparameters, random_state=self._random_state).fit(X, y[obj])
                 # Otherwise, auto-optimize kernel:
                 else:
-                    kernel = self._kernels[regr_name[4:]]
+                    #TODO: Don't forget to decide whether we -always- include a whitekernel or only for non-alpha-gpr!!!
+                    kernel = self._kernels[regr_name[4:]] + WhiteKernel(noise_level_bounds=(1e-15,1e5))
 
                     ## First check if we want to use the alpha_inference technique for lower prediction errors (but higher risk of overfitting)
                     if not 'infer_alpha' in hyperparameters.keys() or hyperparameters['infer_alpha'] == False:
                         if 'infer_alpha' in hyperparameters.keys(): hyperparameters.pop('infer_alpha') # leaving infer_alpha out of the hyperparameters is the same as it being false
                         ## Then regular fit with WhiteNoise
-                        kernel = kernel + WhiteKernel(noise_level_bounds=(1e-15,1e5))
+                        #kernel = kernel + WhiteKernel(noise_level_bounds=(1e-15,1e5))
                         store['model'] = GaussianProcessRegressor(kernel=kernel, **hyperparameters, random_state=self._random_state).fit(X, y[obj])
                     else:
                         # Note infer_alpha doesn't use WhiteKernel by default
@@ -1583,7 +1588,9 @@ class WorkFlow:
                 ## min_max takes the difference between the minimum and maximum of our bootstrapped models as our uncert
                 if min_max:
                     pred_multi = uncert._pred_multi(local_X)
-                    y, std = [pred.mean() for pred in pred_multi], [pred.max() - pred.min() for pred in pred_multi]
+                    y, std = [pred.mean() for pred in pred_multi], [np.std(pred, ddof=1) for pred in pred_multi]
+                    # assume min-max range corresponds to +-sigma
+                    #y, std = [pred.mean() for pred in pred_multi], [(pred.max() - pred.min())/2 for pred in pred_multi]
 
                 ##otherwise use MAPIE Jackknife+-ab (i.e. include conformity scores penalty)
                 else:

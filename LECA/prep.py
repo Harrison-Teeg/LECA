@@ -15,6 +15,7 @@ import hdbscan
 from sklearn import preprocessing
 from sklearn.feature_selection import RFECV #Recursive feature elimination using cross-validation
 from sklearn.model_selection import train_test_split, cross_val_score
+from uncertainties import unumpy
 # For type annotations
 from typing import List, Tuple, Union, Optional, Callable
 
@@ -660,7 +661,6 @@ def arrhenius(
         - the data should contain a single row with the average value and deviations of repeated measurements of the objective function at each inverse temperature.
         - This function randomly perturbs the average measured value for that composition **for each inverse temperature** in the form :math:`log(perturbed) = log(objective) \\cdot (1 + random\_normal(std))` and applies the Arrhenius fit.
         - This is repeated for `n_fits` (by default 50 times). The resulting average coefficient values, their standard deviations and metrics for the quality of the fit on all measurements with this composition are returned.
-        - In addition, the activation energy for the sample (:math:`E = (S_1 \cdot R))` \[mJ/mol\], where R is the Gas Constant) is included.
     
     The Arrhenius surrogate model has the form:
 
@@ -670,7 +670,7 @@ def arrhenius(
     the :math:`\\beta_0` value between 1000/(273.15-50) and 1000/(273.15+100) which results in minimal correlation between the :math:`S_0` and :math:`S_1` 
     coefficients. The returned DataFrame includes the surrogate :math:`S_{0,1,2}` objective functions as well as their deviations (`S0_std`, etc.). 
     The results DataFrame also includes metrics for the quality of the Arrhenius fits:
-    `'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)'`
+    `'R2', Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)'`
 
     If no :math:`\\beta_0` value is provided, by default a plot of the :math:`S_0 : S_1` correlation from -50 - 100C is generated.
 
@@ -734,7 +734,7 @@ def arrhenius(
             - float (beta_0),
             - List[str] (feature list),
             - List[str] (S0 S1 S2 objective functions list),
-            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, 'Activation Energy' and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
+            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit), 'Activation Energy'' columns
     """
         ## Create groups for Arrhenius fit by grouping by features - temp
     rng = np.random.default_rng(seed=random_state)
@@ -760,6 +760,7 @@ def arrhenius(
 
     def perturbed_fit(group_df): # Full fit with perturbation to estimate S_0,1,2 deviation
         if group_df.shape[0] < min_samples: return None # only take the data with n=min_samples or more measured points
+        results = pd.DataFrame()
         ## Create linear regression
         LR = LinearRegression()
         X = pd.DataFrame({
@@ -777,56 +778,36 @@ def arrhenius(
             #log10_perturb_y = np.nan_to_num(np.log10(y + np.random.normal(np.zeros(len(y)),y_std_mean)), nan=-1.79769313e+308) ## catch case where perturbation leads to a negative conductivity (log10 = largest negative supported float)
             log10_perturb_y = np.nan_to_num(np.log10(y)*(1+rng.normal(np.zeros(len(y)),y_std)), nan=-1.79769313e+308) ## Newer version according to Heuer recommendation log(pert) = log(sigma)*(1+noise)
             perturb_LR.fit(X, log10_perturb_y) # Arrhenius -> log of objective
-            perturbed_coeffs['S0'].append(perturb_LR.intercept_)
-            perturbed_coeffs['S1'].append(-1*perturb_LR.coef_[0])
-            perturbed_coeffs['S2'].append(-1*perturb_LR.coef_[1])
-            perturbed_coeffs['MAE'].append(mean_absolute_error(log10_perturb_y, perturb_LR.predict(X)))
-            perturbed_coeffs['R2'].append(r2_score(log10_perturb_y, perturb_LR.predict(X)))
-        ## Add values under the respective coefficient names
-        # Need to collapse the groups now to only return composition : S0 / S1 / S2 
-        MAE = np.mean(perturbed_coeffs['MAE'])
-        MAE = -float('inf') if MAE == 0 else MAE
-        result = pd.Series({
-                'S0': np.mean(perturbed_coeffs['S0']),
-                'S0_std': np.std(perturbed_coeffs['S0'], ddof=1),
-                'S1': np.mean(perturbed_coeffs['S1']),
-                'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
-                'S2': np.mean(perturbed_coeffs['S2']),
-                'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'log(MAE arrh fit)': np.log(MAE),
-                'R2': np.mean(perturbed_coeffs['R2'])
-                })
+            prediction = perturb_LR.predict(X)
+            single_result = feature_df.copy()
+            single_result['S0'] = perturb_LR.intercept_
+            single_result['S1'] = -1*perturb_LR.coef_[0]
+            single_result['S2'] = -1*perturb_LR.coef_[1]
 
-        # Calculate MAE for Arrhenius fit prediction of input samples
-        def arrh_back(beta):
-            return np.power(10, result['S0'] - result['S1']*(beta - default_beta_0) - result['S2']*(beta - default_beta_0)**2)
-        MARE = mean_absolute_error(group_df[objective]/arrh_back(group_df[inverse_temp]), np.ones(group_df.shape[0]))
-        MSRE = mean_squared_error(group_df[objective]/arrh_back(group_df[inverse_temp]), np.ones(group_df.shape[0]))
-        #MAE = np.log(mean_absolute_error(group_df[objective],np.log10(arrh_back(group_df[inverse_temp]))))
-        MARE = -float('inf') if MARE == 0 else MARE
-        MSRE = -float('inf') if MSRE == 0 else MSRE
-        result['Mean Absolute (Relative) Error'] = MARE
-        result['Mean Squared (Relative) Error'] = MSRE
+            single_result['MAE'] = mean_absolute_error(log10_perturb_y, prediction)
+            single_result['R2'] = r2_score(log10_perturb_y, prediction)
+            single_result['Mean Absolute (Relative) Error'] = mean_absolute_error(prediction/log10_perturb_y, np.ones(X.shape[0]))
+            single_result['Mean Squared (Relative) Error'] = mean_squared_error(prediction/log10_perturb_y, np.ones(X.shape[0]))
+            
+            results = pd.concat([results, single_result], axis=1, ignore_index=True)
+        
+        return results.T
 
-        return pd.concat([group_df[arrhenius_group].iloc[0], result])
 
-    arrhenius_group = feature_list.copy()
-    arrhenius_group.remove(inverse_temp)
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2',
-            'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)', 'Activation Energy']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
     data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)
-    data = data[arrhenius_group + objective_list + further_info]
     
     # Show S0 / S1 correlation as a function of selected beta_0
     if beta_0 == None:
         #calculate beta_0 with minimal S0:S1 correlation
         ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
+        means = data.groupby(arrhenius_group)[objective_list].mean().reset_index()
         for beta_n in inv_temps:
-            temp_data = coef_shift(data, default_beta_0, beta_n)
+            temp_data = coef_shift(means, default_beta_0, beta_n)
             if temp_data.empty: continue
             correlation['beta_0'].append(beta_n)
             correlation['corr'].append(temp_data.loc[:,['S0','S1']].corr().iloc[0,1])
@@ -844,22 +825,30 @@ def arrhenius(
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
         plt.tight_layout()
-        if save_loc: plt.savefig(save_loc + 'onset_temp_plot.pdf')
+        if save_loc: plt.savefig(save_loc + 'direct_onset_temp_plot.pdf')
         plt.show()
 
-
     data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
+    means = data.groupby(arrhenius_group)[objective_list + ['MAE', 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error']].apply(np.mean, axis=0).reset_index()
+    stds = data.groupby(arrhenius_group)[objective_list].apply(np.std, ddof=1).reset_index(drop=True)
+    stds.columns = [obj+"_std" for obj in stds.columns]
+    data = pd.concat([means, stds], axis=1)
+    MAE = data['MAE']
+    MAE.loc[MAE == 0] = -float('inf')
+    data['log(MAE arrh fit)'] = np.log(MAE)
     data['Activation Energy'] = data['S1']*gas_constant
+    data = data[arrhenius_group + objective_list + further_info]    # fix column order and exclude extraneous cols
 
-    print("Upper quantile log Arrhenius error:")
-    display(data.loc[data['log(MAE arrh fit)'] > data['log(MAE arrh fit)'].quantile(0.9)])
+    print("Upper quantile Arrhenius fit error:")
+    display(data.loc[data['Mean Absolute (Relative) Error'] > data['Mean Absolute (Relative) Error'].quantile(0.9)])
 
     #Display histogram of fit error
     plt.plot(figsize=(8,4))
     plt.hist(data['log(MAE arrh fit)'])
     plt.ylabel('N(Compositions)')
     plt.xlabel('log(MAE arrh fit)')
-    if save_loc: plt.savefig(save_loc + 'arrhenius_MAE_hist.pdf')
+    plt.tight_layout()
+    if save_loc: plt.savefig(save_loc + 'direct_arrhenius_MAE_hist.pdf')
     plt.show()
 
     return beta_0, arrhenius_group, objective_list, data
@@ -952,7 +941,219 @@ def direct_sample_arrhenius(
             - float (beta_0),
             - List[str] (feature list),
             - List[str] (S0 S1 S2 objective functions list),
-            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, 'Activation Energy' and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
+            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std, and 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit), 'Activation Energy'' columns
+    """
+    rng = np.random.default_rng(seed=random_state)
+
+    min_T = 1000/data[inverse_temp].max()-273.15
+    max_T = 1000/data[inverse_temp].min()-273.15
+    inv_temps = 1000/(np.arange(-50, 100+1, 5)+273.15)
+    default_beta_0 = 1000/273.15
+    correlation = dict(beta_0=[],corr=[])
+    arrhenius_group = feature_list.copy()
+    arrhenius_group.remove(inverse_temp)
+
+    def coef_shift(group_df, beta_0, beta_n): # Shift S0, S1 coefficients from beta_0 to beta_n
+        group_df = group_df.copy()
+        S0 = group_df['S0']
+        S1 = group_df['S1']
+        S2 = group_df['S2']
+        if beta_0 == beta_n:
+            return group_df
+        else:
+            S0_n = S0 - S1*(beta_n - beta_0) - S2*(beta_n - beta_0)**2
+            S1_n = (S0_n - S0) / (beta_0 - beta_n) - S2*(beta_0 - beta_n)
+            group_df['S0'] = S0_n
+            group_df['S1'] = S1_n
+            return group_df
+
+    def perturbed_fit(group_df): # Full fit with perturbation to estimate S_0,1,2 deviation
+        inv_temps = group_df[inverse_temp].unique()
+        if len(inv_temps) < min_samples: return None # only take the data with n=min_samples or more measured points
+        # We create a list of sub-dataframes with each df having matching inverse temperatures
+        grouped_inv_temps = [group_df.loc[group_df['inverse temperature'] == inv_temp] for inv_temp in inv_temps]
+
+        # Generate n_fits randomly sampled datasets to estimate S_x and uncertainties
+        results = pd.DataFrame()#columns=(arrhenius_group + objective_list + ['MAE']))
+        feature_df = group_df[arrhenius_group].iloc[0]
+        for _ in range(n_fits):
+            perturb_LR = LinearRegression()
+
+            # Generate our randomly selected set of measurements (1 per inv_temp)
+            sampled_df = pd.DataFrame()
+            for df in grouped_inv_temps:
+                sampled_df = pd.concat([sampled_df, df.sample(random_state=rng)]) # appends a randomly sampled measurement for each inv_temp
+
+            y = sampled_df[objective]
+            X = pd.DataFrame({
+                'x' : sampled_df[inverse_temp] - default_beta_0,
+                'x**2' : (sampled_df[inverse_temp] - default_beta_0)**2.
+                })
+
+            log10_perturb_y = np.log10(y)
+            perturb_LR.fit(X, log10_perturb_y) # Arrhenius -> log of objective
+            prediction = perturb_LR.predict(X)
+            single_result = feature_df.copy()
+            single_result['S0'] = perturb_LR.intercept_
+            single_result['S1'] = -1*perturb_LR.coef_[0]
+            single_result['S2'] = -1*perturb_LR.coef_[1]
+
+            single_result['MAE'] = mean_absolute_error(log10_perturb_y, prediction)
+            single_result['R2'] = r2_score(log10_perturb_y, prediction)
+            single_result['Mean Absolute (Relative) Error'] = mean_absolute_error(prediction/log10_perturb_y, np.ones(X.shape[0]))
+            single_result['Mean Squared (Relative) Error'] = mean_squared_error(prediction/log10_perturb_y, np.ones(X.shape[0]))
+            
+            results = pd.concat([results, single_result], axis=1, ignore_index=True)
+        
+        return results.T
+
+    ## Redefine objective function to multidimensional:
+    objective_list = ['S0', 'S1', 'S2']
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)', 'Activation Energy']
+
+    ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
+    data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)
+    
+    # Show S0 / S1 correlation as a function of selected beta_0
+    if beta_0 == None:
+        #calculate beta_0 with minimal S0:S1 correlation
+        ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
+        means = data.groupby(arrhenius_group)[objective_list].mean().reset_index()
+        for beta_n in inv_temps:
+            temp_data = coef_shift(means, default_beta_0, beta_n)
+            if temp_data.empty: continue
+            correlation['beta_0'].append(beta_n)
+            correlation['corr'].append(temp_data.loc[:,['S0','S1']].corr().iloc[0,1])
+
+
+        beta_0 = correlation['beta_0'][np.argmin(np.abs(correlation['corr']))] # select beta_0 with minimal S0 / S1 coef correlation
+        print("beta_0 temperature: {}".format(1000/beta_0 - 273.15))
+        plt.plot(figsize=(8,4))
+        plt.plot((1000/np.array(correlation['beta_0'])-273.15), correlation['corr'])
+        plt.xlabel(r"T $\degree$C", fontsize=18)
+        plt.ylabel("Correlation", fontsize=18)
+        plt.title("S0, S1 correlation", fontsize=20)
+        plt.axvline(1000/beta_0-273.15, c='red', linestyle='--')
+        plt.axhline(0, c='black', linestyle='--')
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.tight_layout()
+        if save_loc: plt.savefig(save_loc + 'direct_onset_temp_plot.pdf')
+        plt.show()
+
+    data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
+    means = data.groupby(arrhenius_group)[objective_list + ['MAE', 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error']].apply(np.mean, axis=0).reset_index()
+    stds = data.groupby(arrhenius_group)[objective_list].apply(np.std, ddof=1).reset_index(drop=True)
+    stds.columns = [obj+"_std" for obj in stds.columns]
+    data = pd.concat([means, stds], axis=1)
+    MAE = data['MAE']
+    MAE.loc[MAE == 0] = -float('inf')
+    data['log(MAE arrh fit)'] = np.log(MAE)
+    data['Activation Energy'] = data['S1']*gas_constant
+    data = data[arrhenius_group + objective_list + further_info]    # fix column order and exclude extraneous cols
+
+    print("Upper quantile Arrhenius fit error:")
+    display(data.loc[data['Mean Absolute (Relative) Error'] > data['Mean Absolute (Relative) Error'].quantile(0.9)])
+
+    #Display histogram of fit error
+    plt.plot(figsize=(8,4))
+    plt.hist(data['log(MAE arrh fit)'])
+    plt.ylabel('N(Compositions)')
+    plt.xlabel('log(MAE arrh fit)')
+    plt.tight_layout()
+    if save_loc: plt.savefig(save_loc + 'direct_arrhenius_MAE_hist.pdf')
+    plt.show()
+
+    return beta_0, arrhenius_group, objective_list, data
+
+def direct_sample_arrhenius_depreciated(
+        data: pd.DataFrame, feature_list: Union[str, List[str]], objective: str = 'conductivity',
+        max_error: Optional[float] = None,
+        inverse_temp: str = 'inverse temperature', min_samples: int = 5, beta_0: Optional[float] = None,
+        n_fits: int = 50, random_state: Optional[int] = None,
+        save_loc: Union[str, bool] = False
+    ) -> Tuple[float, List[str], List[str], pd.DataFrame]:
+    """
+    Transform objective function into Arrhenius fitted surrogate model (:math:`log(\\sigma) \\rightarrow S_0, S_1, S_2`). This function expects repeated measurements of the objective function in the form
+    of a DataFrame with columns: e.g. `"inverse temperature", "X", "conductivity", where `"X"` can be some arbitrary feature set.
+
+    For each unique composition (read: identical `"X"` values):
+        - the data should contain several repeated measurements of the objective function at varying inverse temperatures.
+        - This function randomly selects a single measurement for that composition **for each inverse temperature** and applies the Arrhenius fit.
+        - This is repeated for `n_fits` (by default 50 times). The resulting average coefficient values, their standard deviations and metrics for the quality of the fit on all measurements with this composition are returned.
+    
+    The Arrhenius surrogate model has the form:
+
+    .. math:: log_{10}(objective) = S_0 - S_1 (\\beta - \\beta_0) - S_2 (\\beta - \\beta_0)^2
+
+    :math:`\\beta` values should have 1000/T\[K\] scale, and :math:`\\beta_0` can be freely chosen (if not user defined, the function searches for
+    the :math:`\\beta_0` value between 1000/(273.15-50) and 1000/(273.15+100) which results in minimal correlation between the :math:`S_0` and :math:`S_1` 
+    coefficients. The returned DataFrame includes the surrogate :math:`S_{0,1,2}` objective functions as well as their deviations (`S0_std`, etc.). 
+    The results DataFrame also includes metrics for the quality of the Arrhenius fits:
+    `'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)'`
+
+    If no :math:`\\beta_0` value is provided, by default a plot of the :math:`S_0 : S_1` correlation from -50 - 100C is generated.
+
+    In addition, an overview of the Arrhenius fit quality is provided by displaying the compositions with the top 10% log(MAE) as well as a histogram
+    overview of the log(MAE) for the whole dataset.
+
+    **Disambiguation: This function should be used to process a DataFrame with individual rows for each repeated measurement**
+    (i.e. 5 rows for 5 measurements of the conductivity of an electrolyte with composition `"X"` and inverse temperature :math:`\\beta`)
+
+    Parameters
+    ----------
+    data : ``DataFrame``
+        Dataframe of experimental measurements.
+
+    feature_list : Untion[str, List[str]]
+        Feature or list of features
+
+    objective : str
+        `data` column label of objective function to use for the Arrhenius fits (only supports single objective function).
+
+        Default value ``conductivity``.
+
+    inverse_temp: str
+        `data` column label of the inverse temperature (in 1000/T\[K\] scale) for the measured values.
+        The `data` DataFrame should be properly prepared to have this information before calling this function.
+
+        Default value ``inverse temperature``.
+
+    min_samples: int
+        Minimum number of measurements for the feature set excluding inverse temperature (i.e. how many different temperatures were measured for a given formulation). Compositions below this threshold are discarded.
+
+        Default value ``5``.
+
+    beta_0: Optional[float]
+        This value corresponds to the temperature where `S_0` and `S_1` become uncorrelated. If no value is provided, the function will automatically search for the lowest correlated temperature from -50C to 100C (in intervals of 5C).
+
+        Default value ``None``.
+
+    n_fits : int
+        Number of times to vary the objective function (+- random normal perturbation based on the standard deviations of the measurement) and refit to estimate coefficient uncertainty.
+
+        Default value ``50``
+
+    random_state : Optional[int]
+        Sets a numpy random seed for reproducibility.
+
+        Default value ``None``.
+
+    save_loc : Union[bool, str]
+        Name to save plot (if desired), if ``False`` the plot will only be shown, not saved.
+
+        Saving filename convention is:
+        save_loc + 'onset_temp_plot.pdf'
+
+    Returns
+    -------
+        Tuple[float, List[str], List[str], pd.DataFrame]
+            4 tuple of:
+
+            - float (beta_0),
+            - List[str] (feature list),
+            - List[str] (S0 S1 S2 objective functions list),
+            - DataFrame with added S0, S0_std, S1, S1_std, S2, S2_std and 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)' columns
     """
     rng = np.random.default_rng(seed=random_state)
 
@@ -983,7 +1184,7 @@ def direct_sample_arrhenius(
         grouped_inv_temps = [group_df.loc[group_df['inverse temperature'] == inv_temp] for inv_temp in inv_temps]
 
         # Generate n_fits randomly sampled datasets to estimate S_x and uncertainties
-        perturbed_coeffs = {'S0':[],'S1':[],'S2':[], 'MAE':[], 'R2':[]}
+        perturbed_coeffs = {'S0':[],'S1':[],'S2':[], 'MAE':[]}
         for _ in range(n_fits):
             perturb_LR = LinearRegression()
 
@@ -1004,7 +1205,6 @@ def direct_sample_arrhenius(
             perturbed_coeffs['S1'].append(-1*perturb_LR.coef_[0])
             perturbed_coeffs['S2'].append(-1*perturb_LR.coef_[1])
             perturbed_coeffs['MAE'].append(mean_absolute_error(log10_perturb_y, perturb_LR.predict(X)))
-            perturbed_coeffs['R2'].append(r2_score(log10_perturb_y, perturb_LR.predict(X)))
         
         # Need to collapse the groups now to only return composition : S0 / S1 / S2 
         MAE = np.mean(perturbed_coeffs['MAE'])
@@ -1016,8 +1216,7 @@ def direct_sample_arrhenius(
                 'S1_std': np.std(perturbed_coeffs['S1'], ddof=1),
                 'S2': np.mean(perturbed_coeffs['S2']),
                 'S2_std': np.std(perturbed_coeffs['S2'], ddof=1),
-                'log(MAE arrh fit)': np.log(MAE),
-                'R2': np.mean(perturbed_coeffs['R2'])
+                'log(MAE arrh fit)': np.log(MAE)
                 })
 
         # Calculate MAE for Arrhenius fit prediction of input samples
@@ -1035,8 +1234,7 @@ def direct_sample_arrhenius(
 
     ## Redefine objective function to multidimensional:
     objective_list = ['S0', 'S1', 'S2']
-    further_info = ['S0_std', 'S1_std', 'S2_std', 'R2',
-            'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
+    further_info = ['S0_std', 'S1_std', 'S2_std', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error', 'log(MAE arrh fit)']
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
     data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)
@@ -1069,7 +1267,6 @@ def direct_sample_arrhenius(
         plt.show()
 
     data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
-    data['Activation Energy'] = data['S1']*gas_constant
 
     print("Upper quantile Arrhenius fit error:")
     display(data.loc[data['Mean Absolute (Relative) Error'] > data['Mean Absolute (Relative) Error'].quantile(0.9)])
@@ -1084,3 +1281,4 @@ def direct_sample_arrhenius(
     plt.show()
 
     return beta_0, arrhenius_group, objective_list, data
+

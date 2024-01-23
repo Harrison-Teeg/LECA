@@ -63,7 +63,7 @@ def dataset_overview(df, cut_df):
     return output
 #
 #
-def interactive_plot(wf, temps, prediction_fn):
+def interactive_plot(wf, temps, prediction_fn, confidence:float=1.0):
     # Initialize plot figure
     fig = plt.figure(figsize=(6,3))
     ax = fig.add_subplot(111)
@@ -120,7 +120,7 @@ def interactive_plot(wf, temps, prediction_fn):
             fixed_values = fixed_values[:-2]
 
             prediction = prediction_fn(x_input)
-            ax.errorbar(feature_range,prediction['conductivity'],yerr=1.96*(prediction['conductivity_std']),xerr=None,label=str(temp)  + r'$\degree$C',alpha=1,capsize=3)
+            ax.errorbar(feature_range,prediction['conductivity'],yerr=confidence*(prediction['conductivity_std']),xerr=None,label=str(temp)  + r'$\degree$C',alpha=1,capsize=3)
             obj=r'$\sigma$'
         dynamic_plot(obj, feature_var, fixed_values)
 
@@ -253,7 +253,7 @@ class data_generator_1d():
         a = widgets.VBox([out, ui])
         display(a)
 
-def prediction_plot_2d(wf, model_name, f): # Todo: generalize this for 2d regression problems (feature/obj::X/y)
+def prediction_plot_2d(wf, model_name, f, min_max:bool=False, confidence:float=1.0): # Todo: generalize this for 2d regression problems (feature/obj::X/y)
 
     # Initialize plot figure
     fig = plt.figure(figsize=(6,4))
@@ -263,12 +263,12 @@ def prediction_plot_2d(wf, model_name, f): # Todo: generalize this for 2d regres
     n_samples = 100
     X = np.linspace(-2, 10, n_samples)
     X_df = pd.DataFrame(X, columns=['x'])
-    pred = wf.predict(X_df, {'y':model_name}, min_max=True, return_std=True)
+    pred = wf.predict(X_df, {'y':model_name}, min_max=min_max, return_std=True)
     
     ax.fill_between(X, pred['y']-pred['y_std'], pred['y']+pred['y_std'],
                     label=r'$\pm \sigma$', color='orange', alpha=0.5, linestyle='-')
     
-    ax.errorbar(wf.X_unscaled['x'],wf.y['y'],yerr=1.96*wf.std['y_std'],xerr=None,label='Training Data', fmt='.', c='black', alpha=0.5,capsize=1)    
+    ax.errorbar(wf.X_unscaled['x'],wf.y['y'],yerr=confidence*wf.std['y_std'],xerr=None,label='Training Data', fmt='.', c='black', alpha=0.5,capsize=1)    
 
     ax.errorbar(X,f(X),label='f(x)', fmt='--', alpha=1)
     ax.errorbar(X,pred['y'],label='Prediction', color='r', alpha=1)

@@ -1496,7 +1496,7 @@ class WorkFlow:
 
         min_max: bool
             Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
-            `min_max`:``True`` takes the minimum and maximum prediction of the bootstrapped models to be the range of uncertainty.
+            `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
             `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
             This parameter is moot for GPR models.
 
@@ -1594,8 +1594,8 @@ class WorkFlow:
 
                 ##otherwise use MAPIE Jackknife+-ab (i.e. include conformity scores penalty)
                 else:
-                    y, std = uncert.predict(local_X, alpha=0.32)# -> 68% confidence interval == 1*sigma ASSUMING normal distribution
-                    std = np.abs(std[:,1]-std[:,0]).ravel()
+                    y, std = uncert.predict(local_X, alpha=0.16, ensemble=True)# -> theoretical guarantee of 68% confidence interval == +-1*sigma ASSUMING normal distribution
+                    std = np.abs((std[:,1]-std[:,0])/2).ravel() # 68% interval / 2 -> ~1*sigma
             prediction = pd.concat([prediction, pd.Series(y, name=obj), pd.Series(std, name=obj+'_std')], axis=1)
 
         prediction.index = X.index # cast prediction indices to match the indices of the X input
@@ -1908,26 +1908,21 @@ class WorkFlow:
             x_input = x_input[self.features]
             # By default take highest scoring models
             if models == None:
-                pred = self.predict(x_input, min_max=True, return_std=True)
+                pred = self.predict(x_input)
             else: 
-                pred = self.predict(x_input, dict(zip(arrhenius_objectives, models)), min_max=True, return_std=True)
+                pred = self.predict(x_input, dict(zip(arrhenius_objectives, models)))
 
             s0, s1, s2 = arrhenius_objectives[0], arrhenius_objectives[1], arrhenius_objectives[2]
             #to compare log(conductivity/x_LiSalt)
             if deviate_by_salt == True:
-                cond = (unumpy.uarray(pred[s0], pred[s0+'_std']) 
-                            - unumpy.uarray(pred[s1], pred[s1+'_std'])*(temp_offset)
-                            - unumpy.uarray(pred[s2], pred[s2+'_std'])*(temp_offset)**2)
+                cond = pred[s0] - pred[s1]*(temp_offset) - pred[s2]*(temp_offset)**2
             #to compare log conductivity
             else:
-                cond = (unumpy.uarray(pred[s0]+np.log10(x_input['x_LiSalt']), pred[s0+'_std']) 
-                            - unumpy.uarray(pred[s1], pred[s1+'_std'])*(temp_offset)
-                            - unumpy.uarray(pred[s2], pred[s2+'_std'])*(temp_offset)**2)
+                cond = pred[s0] + np.log10(x_input['x_LiSalt']) - pred[s1]*(temp_offset) - pred[s2]*(temp_offset)**2
             #to compare conductivity
             if log == False:
-                cond = unumpy.pow(10,cond) #this must be changed compared to the original function 
-            return pd.DataFrame({original_objective:unumpy.nominal_values(cond),
-                             original_objective+'_std':unumpy.std_devs(cond)})
+                cond = np.power(10,cond)
+            return pd.DataFrame({original_objective:cond})
 
         fig, ax = plt.subplots(1, 1, figsize=(4, 4))
         if custom_label==None:
@@ -2249,7 +2244,8 @@ class WorkFlow:
             obj_fn:Optional[Callable] = None,
             fixed_values:Optional[Dict[str,float]] = None,
             bounds:Optional[Dict[str,Tuple[float]]] = None,
-            n_restarts_optimizer:int = 100) -> pd.DataFrame:
+            n_restarts_optimizer:int = 100,
+            min_max:bool = False) -> pd.DataFrame:
         """
         Optimizer to search design space for max/min objective value, bayesian expected improvement, upper/lower confidence bound and maximum uncertainty strategies. Returns optimal input feature set to query for given strategy.
 
@@ -2286,6 +2282,14 @@ class WorkFlow:
             Number of random points in the design space from which the acquisition function will be optimized. Higher -> more computationally expensive, but higher chance of finding global best acquisition point.
 
             Default value ``100``.
+
+        min_max: bool
+            Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
+            `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
+            `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
+            This parameter is moot for GPR models.
+
+            Default value ``False``.
         
         Returns
         -------
@@ -2314,7 +2318,7 @@ class WorkFlow:
             # Calculate optimal sample for each objective function
             for obj in objectives:
                 def obj_fn(x):
-                    return self.predict(x, obj, X_scaled=False, min_max=True,return_std=True)
+                    return self.predict(x, obj, X_scaled=False, min_max=min_max,return_std=True)
 
                 obj_optimal_sample = self.optimize(strategy=strategy,
                                             obj_fn=obj_fn,
@@ -2425,7 +2429,7 @@ class WorkFlow:
     def _optimizer(self, f, bounds, n_restarts_optimizer:int = 100):
         min_list = []
         # Brute force here to avoid local minima. Generate random in-bounds x0 values to attempt minimization
-        x0_array = np.array([np.random.uniform(*min_max, n_restarts_optimizer) for min_max in bounds.values()]).T
+        x0_array = np.array([np.random.uniform(*min_max_bounds, n_restarts_optimizer) for min_max_bounds in bounds.values()]).T
         for x0 in x0_array:
             res = opt.minimize(fun=f,
                     x0=x0,

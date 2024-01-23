@@ -649,7 +649,7 @@ def create_input(feature_dict: Dict[str, List[float]], steps: int=10, temp: Unio
 
 
 def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkFlow,
-        model: Union[str, List[str]], beta_0: float, log:bool=False
+        model: Union[str, List[str]], beta_0: float, log:bool=False, min_max:bool=False
         ) -> pd.DataFrame:
     """
     Predict the ionic conductivity for given electrolyte compositions at a given temperature.
@@ -678,6 +678,14 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
 
         Default value ``False``
 
+    min_max: bool
+        Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
+        `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
+        `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
+        This parameter is moot for GPR models.
+
+        Default value ``False``.
+
     Returns
     -------
         pd.DataFrame
@@ -699,7 +707,7 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
     inv_temp = x_input['inverse temperature']
     temp_offset = x_input['inverse temperature'] - beta_0
     x_input.drop('inverse temperature', axis=1, inplace=True)
-    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=True, return_std=True)
+    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
     log_cond = (unumpy.uarray(pred['S0'], pred['S0_std'])) \
                 - (unumpy.uarray(pred['S1'], pred['S1_std']))*(temp_offset) \
                 - (unumpy.uarray(pred['S2'], pred['S2_std']))*(temp_offset)**2
@@ -713,7 +721,7 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
     return pred
 
 def predict_conductivity_from_log_conductivity_objective(x_in: pd.DataFrame, wf: WorkFlow, 
-        model: str, log:bool=False, objective:str='log conductivity'
+        model: str, log:bool=False, objective:str='log conductivity', min_max:bool=False
         ) -> pd.DataFrame:
     """
     Predict the ionic conductivity for given electrolyte compositions at a given temperature. This function
@@ -742,6 +750,14 @@ def predict_conductivity_from_log_conductivity_objective(x_in: pd.DataFrame, wf:
 
         Default value ``"log conductivity"``
 
+    min_max: bool
+        Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
+        `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
+        `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
+        This parameter is moot for GPR models.
+
+        Default value ``False``.
+
     Returns
     -------
         pd.DataFrame
@@ -756,7 +772,7 @@ def predict_conductivity_from_log_conductivity_objective(x_in: pd.DataFrame, wf:
     
     x_input = x_in.copy()
     inv_temp = x_input['inverse temperature']
-    pred = wf.predict(x_input, {objective: model}, min_max=True, return_std=True)
+    pred = wf.predict(x_input, {objective: model}, min_max=min_max, return_std=True)
     log_cond = unumpy.uarray(pred[objective], pred[objective+'_std'])
     if log == False:
         cond = unumpy.pow(10,log_cond)
@@ -771,7 +787,7 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
         temperatures:Union[int, float, List[int], List[float]]=20, steps:int=50, ylim:Optional[Tuple[float,float]]=None, 
         multiply_by_salt:bool=False, log:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity',
+        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity',
         indicate_max:Tuple[Optional[str],Union[int, float],Union[int,float]]=(None,0.8, -1)) -> None:
     """
         1-dimensional slice along one feature for models predicted conductivity / log(conductivity). 
@@ -843,6 +859,14 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
 
         Default value ``None``
 
+    min_max: bool
+        Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
+        `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
+        `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
+        This parameter is moot for GPR models.
+
+        Default value ``False``.
+
     confidence: float
         Scalar value to multiply the estimated uncertainty. By default this value is ``1.0`` which results in the
         plotted errorbars showing one standard-deviation. E.g. ``confidence=1.96`` would then reflect an
@@ -908,9 +932,9 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
         for model, model_label in zip(models, model_labels):
             for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
                 if beta_0 == -1:
-                    specific_prediction = predict_conductivity_from_log_conductivity_objective(x_input, wf, model, log, objective)
+                    specific_prediction = predict_conductivity_from_log_conductivity_objective(x_input, wf, model, log, objective, min_max=min_max)
                 else:
-                    specific_prediction = predict_conductivity_from_arrhenius_objectives(x_input, wf, model, beta_0, log)
+                    specific_prediction = predict_conductivity_from_arrhenius_objectives(x_input, wf, model, beta_0, log, min_max=min_max)
 
                 if multiply_by_salt == True:
                     if log == False:
@@ -991,7 +1015,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         beta_0_list:List[float], steps:int=50, objectives:List[str]=['S0', 'S1', 'S2'], 
         ylim:Optional[Tuple[float,float]]=None, multiply_by_salt:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        confidence:float = 1.0, save_loc: Union[str, bool] = False) -> None:
+        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False) -> None:
     """
         1-dimensional slice along one feature for models predicted arrhenius objectives S0, S1 and S2.
         Three plots will be rendered which show the S0, S1 and S2 predictions for the argument defined
@@ -1049,6 +1073,14 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
 
         Default value ``None``
 
+    min_max: bool
+        Whether to use the `min_max` method to estimate uncertainty, or MAPIE with conformity scores.
+        `min_max`:``True`` returns the standard deviations of the predictions from all the bootstrapped models for each point.
+        `min_max`:``False`` uses the MAPIE uncertainty estimation outlined in: `Mapie jackknife+-AB <https://mapie.readthedocs.io/en/latest/theoretical_description_regression.html#the-jackknife-after-bootstrap-method>`_
+        This parameter is moot for GPR models.
+
+        Default value ``False``.
+
     confidence: float
         Scalar value to multiply the estimated uncertainty. By default this value is ``1.0`` which results in the
         plotted errorbars showing one standard-deviation. E.g. ``confidence=1.96`` would then reflect an
@@ -1087,7 +1119,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         else:
             m1 = m2 = m3 = model
         for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
-            pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=True, return_std=True)
+            pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
             if multiply_by_salt == True:
                 pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
             specific_prediction = pd.concat([x_input, pred], axis=1)
@@ -1346,7 +1378,7 @@ def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str
         m1 = m2 = m3 = model
     
     # Build prediction dataframe
-    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=True, return_std=True)
+    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3})
     if multiply_by_salt == True:
         pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
     specific_prediction = pd.concat([x_input, pred], axis=1)

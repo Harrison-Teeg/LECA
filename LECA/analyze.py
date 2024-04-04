@@ -787,7 +787,8 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
         temperatures:Union[int, float, List[int], List[float]]=20, steps:int=50, ylim:Optional[Tuple[float,float]]=None, 
         multiply_by_salt:bool=False, log:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity',
+        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity', 
+        salt_feature: str='x_LiSalt',
         indicate_max:Tuple[Optional[str],Union[int, float],Union[int,float]]=(None,0.8, -1)) -> None:
     """
         1-dimensional slice along one feature for models predicted conductivity / log(conductivity). 
@@ -892,6 +893,11 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
         String name of the objective function for the trained models in the WorkFlow.
 
         Default value ``'log conductivity'``
+    
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
 
     indicate_max: Tuple[Optional[str],Union[int, float],Union[int,float]]
         indicate_max[0] : ``None`` or String. If None do nothing, if String, plot a vertical dashed line 
@@ -938,10 +944,10 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
 
                 if multiply_by_salt == True:
                     if log == False:
-                        specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input['x_LiSalt']
-                        specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input['x_LiSalt']
+                        specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input[salt_feature]
+                        specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input[salt_feature]
                     else:
-                        specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input['x_LiSalt'])
+                        specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input[salt_feature])
                     
                 if min(specific_prediction['conductivity']) < min_cond:
                     min_cond = min(specific_prediction['conductivity'])
@@ -989,9 +995,9 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
             ax.set_ylabel('$\log(\sigma)$')
     else:
         if log==False:
-            ax.set_ylabel('$\sigma/x_\\mathrm{LiSalt}$ [S/cm]')
+            ax.set_ylabel('$\sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$ [S/cm]')
         else:
-            ax.set_ylabel('$\log(\sigma/x_\\mathrm{LiSalt})$')
+            ax.set_ylabel('$\log(\sigma/'+salt_feature.replace('_','_\\mathrm{')+'})$')
             
     if log==True:
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -1015,7 +1021,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         beta_0_list:List[float], steps:int=50, objectives:List[str]=['S0', 'S1', 'S2'], 
         ylim:Optional[Tuple[float,float]]=None, multiply_by_salt:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False) -> None:
+        min_max:bool=False, confidence:float = 1.0, salt_feature: str='x_LiSalt', save_loc: Union[str, bool] = False) -> None:
     """
         1-dimensional slice along one feature for models predicted arrhenius objectives S0, S1 and S2.
         Three plots will be rendered which show the S0, S1 and S2 predictions for the argument defined
@@ -1088,6 +1094,11 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
 
         Default value ``1.0``
 
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
+
     save_loc: Union[str, bool]
         Boolean or string to indicate whether and where to to save the plot. If ``False`` no plot is saved, otherwise:
         The naming scheme follows: save_loc+'slice_1D_Sx_{varied_feature}.pdf
@@ -1121,7 +1132,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
             pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
             if multiply_by_salt == True:
-                pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
+                pred['S0'] = pred['S0'] + np.log10(x_input[salt_feature])
             specific_prediction = pd.concat([x_input, pred], axis=1)
             for i in range(len_o): 
                 obj = objectives[i]
@@ -1148,7 +1159,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         temp:Union[int,float], beta_0:Union[int,float], steps:int=50, 
         restriction: List[str] =['x_EC', 'x_EMC', 'x_LiSalt'], 
         multiply_by_salt:bool=False, log:bool=False, focus:Union[bool,pd.DataFrame]=False, 
-        save_loc: Union[str, bool] = False, objective:str='log conductivity', **kwargs
+        save_loc: Union[str, bool] = False, objective:str='log conductivity', salt_feature:str='x_LiSalt', **kwargs
         ) -> None:
     """
         2-dimensional slice along two features for predicted conductivity / log(conductivity). 
@@ -1222,6 +1233,11 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         String name of the objective function for the trained models in the WorkFlow.
 
         Default value ``'log conductivity'``
+    
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
 
     **kwargs:
         Keyword arguments passed to matplotlib.pyplot.countourf.
@@ -1250,10 +1266,10 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         specific_prediction = predict_conductivity_from_arrhenius_objectives(x_input, wf, model, beta_0, log)
     if multiply_by_salt == True:
         if log == False:
-            specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input['x_LiSalt']
-            specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input['x_LiSalt']
+            specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input[salt_feature]
+            specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input[salt_feature]
         else:
-            specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input['x_LiSalt'])
+            specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input[salt_feature])
 
     #apply restrictions
     applied_restriction = np.sum(specific_prediction[restriction], axis=1)
@@ -1281,9 +1297,9 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
             fig.colorbar(cont, cax=cax,label='$\log(\sigma)$', format="%1.3f")
     else:
         if log==False:
-            fig.colorbar(cont, cax=cax,label='$ \sigma/x_\\mathrm{LiSalt}$ [S/cm]', format="%1.3f")
+            fig.colorbar(cont, cax=cax,label='$ \sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$ [S/cm]', format="%1.3f")
         else:
-            fig.colorbar(cont, cax=cax,label='$\log(\sigma/x_\\mathrm{LiSalt}$)', format="%1.3f")
+            fig.colorbar(cont, cax=cax,label='$\log(\sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$)', format="%1.3f")
     
     if isinstance(focus, pd.DataFrame):
         ax.scatter(focus[range_keys[0]],focus[range_keys[1]], 150, marker='o', facecolors='none', edgecolors='black', linewidth=2)
@@ -1294,7 +1310,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
 def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, List[float]], 
         steps:int=50, restriction: List[str] =['x_EC', 'x_EMC', 'x_LiSalt'], 
         multiply_by_salt:bool=False, focus:Union[bool,pd.DataFrame]=False, 
-        save_loc: Union[str, bool] = False, objectives:List[str]=['S0', 'S1', 'S2'], 
+        save_loc: Union[str, bool] = False, objectives:List[str]=['S0', 'S1', 'S2'], salt_feature: str='x_LiSalt',
         **kwargs) -> None:
     """
         2-dimensional slice along two features for predicted Arrhenius objective values (typically S0, S1 and S2).
@@ -1352,6 +1368,11 @@ def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str
 
         Default value ``['S0', 'S1', 'S2']``
 
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
+
     **kwargs:
         Keyword arguments passed to matplotlib.pyplot.countourf.
 
@@ -1380,7 +1401,7 @@ def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str
     # Build prediction dataframe
     pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3})
     if multiply_by_salt == True:
-        pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
+        pred['S0'] = pred['S0'] + np.log10(x_input[salt_feature])
     specific_prediction = pd.concat([x_input, pred], axis=1)
 
     #apply restrictions

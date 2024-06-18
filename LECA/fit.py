@@ -1833,7 +1833,6 @@ class WorkFlow:
                 "RMSE_test_sem": np.std(results["RMSE_test"], dtype=np.float64)/np.sqrt(n_samples),
                 }
 
-
     def arrhenius_validate(self,
             original_objective: str,
             df: pd.DataFrame,
@@ -1998,8 +1997,6 @@ class WorkFlow:
         print("Validation set:\nMAE: {}\nMSE: {}".format(MAE,MSE))
         return {"r2_train": r2_train,"r2_test": r2_test, "MAE_train": MAE_train, "MAE_test": MAE_test, 
             "MSE_train": MSE_train, "MSE_test": MSE_test, "RMSE_train": np.sqrt(MSE_train), "RMSE_test": np.sqrt(MSE_test)}
-
-
 
     def validate(self,
             name:str, objective_funcs=None, save_loc: Union[bool, str] = False, show_title: bool = True
@@ -2428,8 +2425,9 @@ class WorkFlow:
 
     def _optimizer(self, f, bounds, n_restarts_optimizer:int = 100):
         min_list = []
+        random_generator = np.random.default_rng(seed=self._random_state)
         # Brute force here to avoid local minima. Generate random in-bounds x0 values to attempt minimization
-        x0_array = np.array([np.random.uniform(*min_max_bounds, n_restarts_optimizer) for min_max_bounds in bounds.values()]).T
+        x0_array = np.array([random_generator(*min_max_bounds, n_restarts_optimizer) for min_max_bounds in bounds.values()]).T
         for x0 in x0_array:
             res = opt.minimize(fun=f,
                     x0=x0,

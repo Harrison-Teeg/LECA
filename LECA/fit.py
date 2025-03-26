@@ -198,6 +198,8 @@ class WorkFlow:
             if composition_features != None: # If we want to train/validate split considering composition groups:
                 gss = GroupShuffleSplit(n_splits=1, test_size=validation_holdout, random_state=random_state)
                 train_index, validate_index = next(gss.split(X, groups=groups)) # 1 element generator
+                self.train_index = train_index
+                self.validate_index = validate_index
                 #Note, change X_val before X of course as X is source
                 X_validate = X.iloc[validate_index]
                 X = X.iloc[train_index]
@@ -302,6 +304,8 @@ class WorkFlow:
             if composition_features != None: # If we want to train/validate split considering composition groups:
                 gss = GroupShuffleSplit(n_splits=1, test_size=validation_holdout, random_state=random_state)
                 train_index, validate_index = next(gss.split(X, groups=groups)) # 1 element generator
+                self.train_index = train_index
+                self.validate_index = validate_index
                 #Note, change X_val before X of course as X is source
                 X_validate = X.iloc[validate_index]
                 X = X.iloc[train_index]
@@ -344,6 +348,56 @@ class WorkFlow:
             self.poly_validate = pd.DataFrame(self.poly_scaler.transform(self.poly_transformer.transform(X_validate)))
             self.y_validate = y_validate
             self.std_validate = std_validate
+
+    def extend_data_set(self, data_new):
+        """Extend the training data set with new data, e.g. from Active Learning, while the validation data set
+        remains the same.
+
+        Parameters
+        ----------
+        data_new : pd.DataFrame
+            pd.DataFrame with a similar structure to the initial data frame.
+        """
+        objective_list = self.objective_list
+        features = self.features
+        composition_features = self.composition_features
+        data = pd.concat([self.data, data_new]).reset_index(drop=True)
+        
+        X = self.data[features]
+        y = self.data[objective_list]
+        std = data[[obj + "_std" for obj in objective_list if obj + "_std" in data.columns]]
+
+        # Create a dataframe of data index -> group (where group represents a unique ID for a unique composition)
+        if composition_features != None: groups = X.groupby(composition_features).ngroup()
+
+        print("New indices: {}".format(data.iloc[len(self.data):].index))
+        train_index = np.concatenate([self.train_index, data.iloc[len(self.data):].index])
+
+        self.data = data
+
+        X = X.iloc[train_index]
+        y = y.iloc[train_index]
+        std = std.iloc[train_index]
+        if composition_features != None:
+            groups = groups.iloc[train_index]
+            X,y,std,groups = shuffle(X,y,std,groups, random_state=self._random_state)
+            self.groups = groups.reset_index(drop=True)
+        else:
+            X,y,std = shuffle(X,y,std, random_state=self._random_state)
+
+        #Generate polynomials
+        poly_X = pd.DataFrame(self.poly_transformer.fit_transform(X))
+
+        ##Scale (on training set to avoid test/val info leaking into models)
+        self.X = pd.DataFrame(self.scaler.transform(X), columns=X.columns)
+        self.poly_X = pd.DataFrame(self.poly_scaler.transform(poly_X))
+     
+        # Save rest of attributes
+        self.X_unscaled = X
+        self.poly_unscaled = poly_X
+        self.y = y
+        self.std = std
+
             
     def retrain(self):
         """

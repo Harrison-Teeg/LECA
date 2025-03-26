@@ -649,7 +649,7 @@ def create_input(feature_dict: Dict[str, List[float]], steps: int=10, temp: Unio
 
 
 def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkFlow,
-        model: Union[str, List[str]], beta_0: float, log:bool=False, min_max:bool=False
+        model: Union[str, List[str]], beta_0: float, log:bool=False, min_max:bool=False, return_std=True
         ) -> pd.DataFrame:
     """
     Predict the ionic conductivity for given electrolyte compositions at a given temperature.
@@ -686,6 +686,11 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
 
         Default value ``False``.
 
+    return_std: bool
+        Whether to return the uncertainty or not.
+
+        Default value  ``True``.
+
     Returns
     -------
         pd.DataFrame
@@ -707,16 +712,25 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
     inv_temp = x_input['inverse temperature']
     temp_offset = x_input['inverse temperature'] - beta_0
     x_input.drop('inverse temperature', axis=1, inplace=True)
-    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
-    log_cond = (unumpy.uarray(pred['S0'], pred['S0_std'])) \
-                - (unumpy.uarray(pred['S1'], pred['S1_std']))*(temp_offset) \
-                - (unumpy.uarray(pred['S2'], pred['S2_std']))*(temp_offset)**2
+    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=return_std)
+    if return_std==True:
+        log_cond = (unumpy.uarray(pred['S0'], pred['S0_std'])) \
+                    - (unumpy.uarray(pred['S1'], pred['S1_std']))*(temp_offset) \
+                    - (unumpy.uarray(pred['S2'], pred['S2_std']))*(temp_offset)**2
+    else: 
+        log_cond = pred['S0'] -pred['S1']*temp_offset - pred['S2']*temp_offset**2
     if log == False:
-        cond = unumpy.pow(10,log_cond)
+        if return_std == True:
+            cond = unumpy.pow(10,log_cond)
+        else: 
+            cond = np.power(10,log_cond)
     else:
         cond = log_cond
-    cond = pd.DataFrame({'conductivity':unumpy.nominal_values(cond),
-                         'conductivity_std':unumpy.std_devs(cond)})
+    if return_std==True:
+        cond = pd.DataFrame({'conductivity':unumpy.nominal_values(cond),
+                            'conductivity_std':unumpy.std_devs(cond)})
+    else:
+        cond = pd.DataFrame({'conductivity':cond})
     pred = pd.concat([inv_temp, x_input, cond], axis=1)
     return pred
 
@@ -1278,6 +1292,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
     
     for i in index:
         specific_prediction.iloc[i,index_conductivity] = 0
+
     
     data = np.array(specific_prediction[range_keys])
     conductivity = np.array(specific_prediction['conductivity'])
@@ -1462,6 +1477,7 @@ def visualize_arrhenius_fit(
         colors: Optional[List[str]] = None,
         y_label: Optional[str] = None,
         individual_data_df:Optional[pd.DataFrame]=None,
+        filtered_data_df:Optional[pd.DataFrame]=None,
         confidence:float = 1.0,
         save_loc: Union[str, bool] = False,
         save_idx: Union[int, float, str]=0,
@@ -1519,6 +1535,12 @@ def visualize_arrhenius_fit(
                
             individual_data : Optional[pd.DataFrame]
                 DataFrame containing the true individual measured values for the ionic conductivity. If ``None`` is provided 
+                no individual experimental data is plotted.
+                
+                Default value ``None``
+
+            filtered_data : Optional[pd.DataFrame]
+                DataFrame containing the true individual measured values for the ionic conductivity, which were filtered out. If ``None`` is provided 
                 no individual experimental data is plotted.
                 
                 Default value ``None``
@@ -1589,6 +1611,12 @@ def visualize_arrhenius_fit(
             exp_indices = np.where(np.array(individual_data_df[features].sum(axis=1)) == formulation[features].sum())
             ax.plot(individual_data_df['inverse temperature'].iloc[exp_indices], 
                              individual_data_df[true_objective].iloc[exp_indices], 'rx', label=true_label)
+            true_label=''
+
+        if isinstance(filtered_data_df, pd.DataFrame) or isinstance(filtered_data_df, pd.Series):
+            exp_indices = np.where(np.array(filtered_data_df[features].sum(axis=1)) == formulation[features].sum())
+            ax.plot(filtered_data_df['inverse temperature'].iloc[exp_indices], 
+                             filtered_data_df[true_objective].iloc[exp_indices], 'kx', label=true_label)
             true_label=''
 
         T, conductivity = predict_arrhenius_fit(formulation, beta_0)

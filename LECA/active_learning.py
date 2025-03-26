@@ -1,16 +1,31 @@
+# Author: Mirko Fischer
+# Date: 12.08.2024
+# Version: 0.0.1
+# License: MIT license
 
 import pickle
 from LECA import fit
 from LECA.prep import to_list
 from typing import List, Tuple, Union, Optional, Callable, Dict
 from PyAL.multi_optimize_pool import run_batch_learning_multi
-from PyAL.optimize import run_batch_learning
+from PyAL.multi_optimize import run_continuous_batch_learning_multi
+from PyAL.optimize import run_batch_learning, run_continuous_batch_learning
+from PyAL.aggregation_fn import identity_aggregation_fn
 from PyAL.models import PoolModel
 
 import numpy as np
 import pandas as pd
 import copy
+from copy import deepcopy
 from sklearn.base import clone
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+
+def initialize_dataset(pool=None):
+    pass
+
+def features_to_composition():
+    pass
 
 class ActiveLearner:
     """
@@ -63,11 +78,13 @@ class ActiveLearner:
     def __init__(self, wf: fit.WorkFlow, data_pool: Optional[Union[pd.DataFrame, np.ndarray]]=None) -> None:
         self.wf = wf
 
+        self.scaler = wf.scaler
+
         #Copy data because we might modify it and do not want to modify the workflow directly
-        self.active_set_X = copy.deepcopy(self.wf.X)
+        self.active_set_X = copy.deepcopy(self.wf.X_unscaled)
         self.active_set_y = copy.deepcopy(self.wf.y)
 
-        self.test_set_X = copy.deepcopy(self.wf.X_validate)
+        self.test_set_X = copy.deepcopy(self.wf.X_validate_unscaled)
         self.test_set_y = copy.deepcopy(self.wf.y_validate)
 
         self.X = pd.concat([self.active_set_X, self.test_set_X])
@@ -85,14 +102,18 @@ class ActiveLearner:
         else:
             self.polynomial_degree = 3
 
+        self.suggested_data = None
+
 
     def data_importance(self, 
                         estimators: Optional[Union[str, List[str]]] = None,
                         objective_funcs: Optional[Union[str, List[str]]] = None, 
                         acquisition_function: Optional[Union[str, List[str]]]='ideal',
                         aggregation_function: Optional[callable]=None, 
-                        repeat: int=1, initial_samples: int=10,  alpha: Union[float, List[float]]=10.0, 
-                        random_state: Optional[int] = None,
+                        lim_features: Optional[List[float]]=[-1,1],
+                        repeat: int=1, initial_samples: int=10,  alpha: Union[float, List[float]]=10.0,
+                        shuffle_sets=False, random_state: Optional[int] = None,
+                        initialization: Optional[str]='random', training_subset=None, select_test_from_sets_equally=True,
                         **kwargs):
         
         """
@@ -154,6 +175,30 @@ class ActiveLearner:
 
             Default value ``10``.
 
+        suffle_sets : Optional[bool]
+            When True the trainining and validation holdout set from the workflow are mixed. 
+            Use this, when the result depends extremely on the chosen validation holdout set.
+            
+            Default value ``False``.
+
+        training_subset : Optional[pd.DataFrame]
+            You should always use a workflow containing all data available. To use only a subset of data for training
+            the models for datasize performans, you can specify training_subset.
+            This way, the test set will always be selected from all available data, even if the models are only
+            trained on part of the data. This ensures consistency in test errors. 
+            
+            Example:
+            We assume data was collected during 3 Active Learning iterations. Data named Gen1 corresponds to the first, 
+            Gen2 to the second and Gen3 to the third iteration. The initial data is named Gen0. 
+            We will always take data from Gen0 to Gen3 for testing. 
+            Let's say we want to evaluate the improvement of the models when adding Gen2 data. 
+            This means, we use Gen0 and Gen1 as initial data (Initial samples needs to be specified, 
+            together with initialization='data'). Then the datasize_performance is only run for Gen2.
+
+            If you want to perform a similar analysis for Gen3, the test errors will be consistent.
+
+            Default value ``None``.
+
         random_state : Optional[int]
             Sets a numpy random seed for reproducibility.
 
@@ -166,112 +211,490 @@ class ActiveLearner:
             Dictionary with active learning results
         """
 
+        def find_matching_indices(df, column_names, reference_values):
+                                # Check if inputs have correct length
+                                if len(column_names) != len(reference_values):
+                                    raise ValueError("Number of column names must match number of reference values")
+                                
+                                # Create boolean mask for matching indices
+                                mask = np.ones(len(df), dtype=bool)
+                                for idx, ref_val in zip(column_names, reference_values):
+                                    mask &= (np.isclose(df[:, idx], ref_val, atol=1e-10))
+                                
+                                # Return indices where all conditions are met
+                                return np.where(mask)[0].tolist()
+
         if objective_funcs == None: objective_funcs = self.objective_funcs
         rng = np.random.default_rng(seed=random_state)
 
         score_dict={}
 
+        if select_test_from_sets_equally:
+            if initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                print('Selecting data for test set from initial set, training subset and the rest equally.')
+                rest_idx = []
+                for sample in np.array(training_subset):
+                    l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
+                    if len(l) > 0:
+                        rest_idx += l
+                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                X_rest = self.X.iloc[np.array(rest_idx)]
+
+                rest_idx = []
+                for sample in np.array(initial_samples):
+                    l = find_matching_indices(np.array(X_rest), np.arange(0, initial_samples.shape[1]), sample)
+                    if len(l) > 0:
+                        rest_idx += l
+                rest_idx = [l for l in range(len(X_rest)) if l not in rest_idx]
+                X_rest = X_rest.iloc[np.array(rest_idx)]
+
+                rest_idx = []
+                for sample in np.array(initial_samples):
+                    l = find_matching_indices(np.array(training_subset), np.arange(0, initial_samples.shape[1]), sample)
+                    if len(l) > 0:
+                        rest_idx += l
+                rest_idx = [l for l in range(len(training_subset)) if l not in rest_idx]
+                training_subset = training_subset.iloc[np.array(rest_idx)]
+
+            elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                print('Selecting data for test set from training subset and the rest equally.')
+                rest_idx = []
+                for sample in np.array(training_subset):
+                    l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
+                    if len(l) > 0:
+                        rest_idx += l
+                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                X_rest = self.X.iloc[np.array(rest_idx)]
+
+            elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                print('Selecting data for test set from initial set and the rest equally.')
+                rest_idx = []
+                for sample in np.array(initial_samples):
+                    l = find_matching_indices(np.array(self.X), np.arange(0, initial_samples.shape[1]), sample)
+                    if len(l) > 0:
+                        rest_idx += l
+                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                X_rest = self.X.iloc[np.array(rest_idx)]
+
+            else:
+                print('Selecting data for test set from full data set randomly.')
+                X_rest = self.X
+            
+
         #evaluate each objective separately
         if aggregation_function == None:
+            #Simply use identity aggregation function if no aggregation function is provided
+            #This is slower but this way also full functionality is provided
+            aggregation_function == identity_aggregation_fn
 
-            for obj in to_list(objective_funcs):
-                print('Active Learning for objective: {}'.format(obj))
-                if estimators == None: estimators = self.estimator_names[obj]
-                score_dict[obj] = {}
+            #for obj in to_list(objective_funcs):
+            #    print('Active Learning for objective: {}'.format(obj))
+            #    if estimators == None: estimators = self.estimator_names[obj]
+            #    score_dict[obj] = {}
+            #
+            #    for model in to_list(estimators):
+            #        print('Model: {}'.format(model))
+            #        score_dict[obj][model] = {}
+            #        for acf, alpha_a in zip(to_list(acquisition_function), to_list(alpha)):
+            #            print('Acquisition function: {}'.format(acf))
+            #            score_dict[obj][model][acf] = {}
+            #            for i in range(repeat):
+            #                print('Iteration {}/{}'.format(i+1, repeat))
+            #                random_state_act = random_state+i if random_state != None else None
 
-                for model in to_list(estimators):
-                    print('Model: {}'.format(model))
-                    score_dict[obj][model] = {}
-                    for acf, alpha_a in zip(to_list(acquisition_function), to_list(alpha)):
-                        print('Acquisition function: {}'.format(acf))
-                        score_dict[obj][model][acf] = {}
-                        for i in range(repeat):
-                            random_state_act = random_state+i if random_state != None else None
+            #                estimator = Pipeline([('scaler', clone(self.scaler)),
+            #                                     ('model', clone(self.wf.get_estimator(model, obj)))]) 
+            #                evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
                             
-                            estimator = clone(self.wf.get_estimator(model, obj))
-                            evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
+            #                if shuffle_sets:
+            #                    active_set, test_set = train_test_split(np.array(self.X),
+            #                                                            test_size = len(self.test_set_X),
+            #                                                            random_state = random_state_act,
+            #                                                            shuffle=True)
+            #                else:
+            #                    active_set =np.array(self.active_set_X)
+            #                    test_set = np.array(self.test_set_X)
+            #                print(lim_features)
+            #                samples, observation_y, result = run_batch_learning(evaluation_model, 
+            #                regression_model=estimator,
+            #                acquisition_function = acf,
+            #                pool = active_set, 
+            #                batch_size = 1,
+            #                noise=0.0,
+            #                initial_samples=initial_samples, 
+            #                active_learning_steps=len(active_set)-initial_samples,
+            #                lim=None,
+            #                alpha=alpha_a,
+            #                random_state=random_state_act,
+            #                return_samples=False,
+            #                initialization=initialization,
+            #                test_set = test_set,
+            #                poly_degree = self.polynomial_degree,
+            #                fictive_noise_level = 0,
+            #                calculate_test_metrics = True
+            #                )
 
-                            samples, result = run_batch_learning(evaluation_model, 
-                            regression_model=estimator,
-                            acquisition_function = 'ideal',
-                            pool = np.array(self.active_set_X), 
-                            batch_size = 1,
-                            noise=0.0,
-                            initial_samples=initial_samples, 
-                            active_learning_steps=len(self.active_set_X)-initial_samples,
-                            lim=None,
-                            alpha=alpha_a,
-                            random_state=random_state_act,
-                            return_samples=False,
-                            initialization='random',
-                            test_set = np.array(self.test_set_X),
-                            poly_degree = self.polynomial_degree,
-                            fictive_noise_level = 0,
-                            calculate_test_metrics = True
-                            )
-                            score_dict[obj][model][acf]['iteration {}'.format(i)] = {}
-                            score_dict[obj][model][acf]['iteration {}'.format(i)]['samples'] = samples
-                            score_dict[obj][model][acf]['iteration {}'.format(i)]['result'] = result
+            #                score_dict[obj][model][acf]['iteration {}'.format(i)] = {}
+            #                score_dict[obj][model][acf]['iteration {}'.format(i)]['samples'] = samples
+            #                score_dict[obj][model][acf]['iteration {}'.format(i)]['result'] = result
 
-            return score_dict
+            #return score_dict
 
         #Evaluate all objectives together
-        else:
+        #else:
 
-            score_dict = {}
+        score_dict = {}
+        initial_samples_original = deepcopy(initial_samples)
 
-            if estimators == None: estimators = self.estimator_names[obj[0]]
-            for model in to_list(estimators):
-                print('Model: {}'.format(model))
-                score_dict[model] = {}
+        if estimators == None: estimators = self.estimator_names[obj[0]]
+        for model in to_list(estimators):
+            print('Model: {}'.format(model))
+            score_dict[model] = {}
 
-                current_estimators = []
-                evaluation_models = []
-                for obj in to_list(objective_funcs):
-                    estimator = clone(self.wf.get_estimator(model, obj))
-                    current_estimators.append(estimator)
-                    evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
-                    evaluation_models.append(evaluation_model)
+            current_estimators = []
+            evaluation_models = []
+            for obj in to_list(objective_funcs):
+                estimator = Pipeline([('scaler', clone(self.scaler)),
+                                        ('model', clone(self.wf.get_estimator(model, obj)))]) 
+                current_estimators.append(estimator)
+                evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
+                evaluation_models.append(evaluation_model)
+            
+            for acf, alpha_a in zip(to_list(acquisition_function), to_list(alpha)):
+                print('Acquisition function: {}'.format(acf))
+                score_dict[model][acf] = {}
+
+                for i in range(repeat):
+                    print('Iteration {}/{}'.format(i+1, repeat))
+                    random_state_act = random_state+i if random_state != None else None
+
+                    #First, select test set from all data
+                    #This way, we make sure that the test data is taken from all available data,
+                    #even if we fit models only using data up to a certain generation of AL
+                    #e.g. use data from Gen0 + Gen1 for training and data from Gen0 + Gen1 + Gen2 for testing
+                    #Furthermore, we may later also select Gen0 as initial data (see below)
+                    if select_test_from_sets_equally:
+                        if not shuffle_sets:
+                            raise Exception('Shuffle_sets must be `True` to use this option')
+                        elif initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                            n_subset = len(self.test_set_X)/len(self.X)
+                            a1, t1 = train_test_split(np.array(training_subset),
+                                                        test_size = n_subset,
+                                                        random_state = random_state_act,
+                                                        shuffle=True)
+                            a2, t2 = train_test_split(np.array(initial_samples_original),
+                                                        test_size = n_subset,
+                                                        random_state = random_state_act,
+                                                        shuffle=True)
+                            if len(X_rest) > 0:
+                                a3, t3 = train_test_split(np.array(X_rest),
+                                                            test_size = n_subset,
+                                                            random_state = random_state_act,
+                                                            shuffle=True)
+                                active_set = np.vstack([a2, a1])
+                                test_set = np.vstack([t1, t2, t3])
+                            else:
+                                active_set = np.vstack([a2, a1])
+                                test_set = np.vstack([t1, t2])
+
+                            initial_samples = np.arange(len(a2))
+                            #print(initial_samples)
+                            active_learning_steps = len(active_set)-len(initial_samples)
+                            
+                            
+                        elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                            n_subset = len(self.test_set_X)/len(self.X)
+                            a1, t1 = train_test_split(np.array(training_subset),
+                                                        test_size = n_subset,
+                                                        random_state = random_state_act,
+                                                        shuffle=True)
+                            
+                            if len(X_rest) > 0:
+                                a2, t2 = train_test_split(np.array(X_rest),
+                                                            test_size = n_subset,
+                                                            random_state = random_state_act,
+                                                            shuffle=True)
+                                
+                                active_set = a1
+                                test_set = np.vstack([t1, t2])
+                            else:
+                                active_set = a1
+                                test_set = t1
+
+                            active_learning_steps = len(active_set)-initial_samples
+                        
+
+                        elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                            n_subset = len(self.test_set_X)/len(self.X)
+                            a1, t1 = train_test_split(np.array(initial_samples_original),
+                                                        test_size = n_subset,
+                                                        random_state = random_state_act,
+                                                        shuffle=True)
+                            a2, t2 = train_test_split(np.array(X_rest),
+                                                        test_size = n_subset,
+                                                        random_state = random_state_act,
+                                                        shuffle=True)
+                            
+                            active_set = np.vstack([a1, a2])
+                            test_set = np.vstack([t1, t2])
+
+                            initial_samples = np.arange(len(a1))
+                            active_learning_steps = len(active_set)-len(initial_samples)
+                            
+
+                        else:
+                            active_set, test_set = train_test_split(np.array(self.X),
+                                                                    test_size = len(self.test_set_X),
+                                                                    random_state = random_state_act,
+                                                                    shuffle=True)
+                            
+                            active_learning_steps = len(active_set)-initial_samples
+
+
+                    else:
+                        if shuffle_sets:
+                            active_set, test_set = train_test_split(np.array(self.X),
+                                                                    test_size = len(self.test_set_X),
+                                                                    random_state = random_state_act,
+                                                                    shuffle=True)
                 
-                for acf, alpha_a in zip(to_list(acquisition_function), to_list(alpha)):
-                    print('Acquisition function: {}'.format(acf))
-                    score_dict[model][acf] = {}
+                        else:
+                            active_set =np.array(self.active_set_X)
+                            test_set = np.array(self.test_set_X)
 
-                    for i in range(repeat):
-                        random_state_act = random_state+i if random_state != None else None
+                        #Second, select a training subset from the active set
+                        if isinstance(training_subset, pd.DataFrame):
+                            active_set_indices = []
+                            for sample in np.array(training_subset):
+                                l = find_matching_indices(active_set, np.arange(0, training_subset.shape[1]), sample)
+                                if len(l) > 0:
+                                    active_set_indices += l
+                            active_set = active_set[np.array(active_set_indices)]
 
-                        samples, result = run_batch_learning_multi(evaluation_models,
-                        aggregation_function=aggregation_function,
-                        regression_models=current_estimators,
-                        acquisition_function = acquisition_function,
-                        pool = np.array(self.active_set_X),
-                        batch_size=1,
-                        noise=0,
-                        initial_samples=initial_samples,
-                        active_learning_steps=len(self.active_set_X)-initial_samples,
-                        alpha=alpha_a,
-                        initialization='random',
-                        test_set=np.array(self.test_set_X),
-                        random_state=random_state_act,
-                        calculate_test_metrics=True,
-                        **kwargs)
+                        #Third, select the initial data points
+                        #The initial data points must be in the training subset
+                        if initialization == 'data':
+                            initial_sample_indices = []
+                            for sample in np.array(initial_samples_original):
+                                l = find_matching_indices(active_set, np.arange(0, initial_samples_original.shape[1]), sample)
+                                if len(l) > 0:
+                                    initial_sample_indices += l
 
-                        score_dict[model][acf]['iteration {}'.format(i)] = {}
-                        score_dict[model][acf]['iteration {}'.format(i)]['samples'] = samples
-                        score_dict[model][acf]['iteration {}'.format(i)]['result agg'] = result['aggregated']
-                        for j, obj in enumerate(to_list(objective_funcs)):
-                            score_dict[model][acf]['iteration {}'.format(i)]['result {}'.format(obj)] = result['model_{}'.format(j)]
+                            initial_samples = np.array(initial_sample_indices)
+                            #print(initial_samples)
+                            active_learning_steps = len(active_set)-len(initial_samples)
+                            #print(active_learning_steps)
+                        else:
+                            active_learning_steps = len(active_set)-initial_samples
+                        
+                    print('Active Set: {}'.format(len(active_set)))
+                    print('Test Set: {}'.format(len(test_set)))
+                    print('Initial samples: {}'.format(initial_samples))
+                    print('Active Learning Steps: {}'.format(active_learning_steps))
 
-            return score_dict
+                    samples, observation_y, result = run_batch_learning_multi(evaluation_models,
+                    aggregation_function=aggregation_function,
+                    regression_models=current_estimators,
+                    acquisition_function = acf,
+                    pool = active_set,
+                    batch_size=1,
+                    noise=0,
+                    lim_features=lim_features,
+                    feature_scaler='min_max',
+                    initial_samples=initial_samples,
+                    active_learning_steps=active_learning_steps,
+                    alpha=alpha_a,
+                    initialization=initialization,
+                    test_set=test_set,
+                    random_state=random_state_act,
+                    calculate_test_metrics=True,
+                    **kwargs)
+
+                    score_dict[model][acf]['iteration {}'.format(i)] = {}
+                    score_dict[model][acf]['iteration {}'.format(i)]['samples'] = samples
+                    score_dict[model][acf]['iteration {}'.format(i)]['result agg'] = result['aggregated']
+                    for j, obj in enumerate(to_list(objective_funcs)):
+                        score_dict[model][acf]['iteration {}'.format(i)]['result {}'.format(obj)] = result['model_{}'.format(j)]
+
+        return score_dict
         
     
-    def single_step_al():
-        pass
+    def single_step_al(self, 
+                        estimator: Optional[str] = None,
+                        objective_funcs: Optional[Union[str, List[str]]] = None, 
+                        acquisition_function: Optional[Union[str, List[str]]]='ideal',
+                        aggregation_function: Optional[callable]=None, 
+                        alpha: float=10.0, lim:Optional[np.ndarray]=None, batch_size:int=10,
+                        random_state: Optional[int] = None,
+                        **kwargs):
+        
+        if objective_funcs == None: objective_funcs = self.objective_funcs
+        rng = np.random.default_rng(seed=random_state)
+
+        if aggregation_function == None:
+            print('An aggregation function is NOT used.')
+            #Evaluate for each objective function
+            for obj in to_list(objective_funcs):
+                print('Active Learning for objective: {}'.format(obj))
+                if estimator == None: estimator = self.wf.best_model[obj]
+
+                #Get a cloned model
+                model = clone(self.wf.get_estimator(estimator, obj))
+                
+                #Interactively enter new data
+                evaluation_model = InteractiveModel(features=self.X, objective=self.y[obj])
+
+                #Pool based learning
+                if isinstance(self.data_pool, np.ndarray):
+
+                    #Not supported right now
+                    #samples, result = run_batch_learning(evaluation_model, 
+                    #    regression_model=model,
+                    #    acquisition_function = acquisition_function,
+                    #    pool = self.data_pool, 
+                    #    batch_size = batch_size,
+                    #    noise=0.0,
+                    #    initial_samples=np.concatenate([self.active_set_X, self.test_set_X]),
+                    #    active_learning_steps=1,
+                    #    lim=None,
+                    #    alpha=alpha,
+                    #    random_state=random_state,
+                    #    return_samples=True,
+                    #    initialization='data',
+                    #    test_set = None,
+                    #    poly_degree = self.polynomial_degree,
+                    #    fictive_noise_level = 0,
+                    #    calculate_test_metrics = False)
+                    pass
+                #Population based learning
+                else:
+                    #Not supported right now
+                    #samples, result = run_continuous_batch_learning(evaluation_model, 
+                    #    regression_model=model,
+                    #    acquisition_function = acquisition_function,
+                    #    batch_size = batch_size,
+                    #    noise=0.0,
+                    #    initial_samples=np.array(self.X),
+                    #    active_learning_steps=1,
+                    #    lim=lim,
+                    #    alpha=alpha,
+                    #    random_state=random_state,
+                    #    return_samples=True,
+                    #    initialization='data',
+                    #    poly_degree = self.polynomial_degree,
+                    #    fictive_noise_level = 0,
+                    #    calculate_test_metrics = False)
+                    pass
+        else:
+            print('Using an aggregation function.')
+            current_estimators = []
+            evaluation_models = []
+            for obj in to_list(objective_funcs):
+                model = clone(self.wf.get_estimator(estimator, obj))
+                current_estimators.append(model)
+                evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
+                evaluation_models.append(evaluation_model)
+
+            if isinstance(self.data_pool, np.ndarray):
+                #Not supported right now
+                print('Assuming pool-based learning.')
+                pass
+
+            else:
+                print('Assuming population-based learning.')
+                sample_x, obs_dict, result = run_continuous_batch_learning_multi(evaluation_models, 
+                aggregation_function, 
+                current_estimators,
+                acquisition_function = acquisition_function,
+                opt_method = 'PSO',
+                batch_size = batch_size,
+                noise=0,
+                #Consider whole data set here, because otherwise AL might suggest to evaluate already evaluated data next
+                initial_samples=np.array(self.X), 
+                active_learning_steps=1,
+                lim_features=lim,
+                alpha=alpha,
+                random_state=random_state,
+                initialization='data',
+                poly_degree = self.polynomial_degree,
+                calculate_test_metrics=False,
+                verbose=False,
+                single_update=True,
+                **kwargs
+                )
+                self.suggested_data = sample_x[len(self.X):]
+                return sample_x, obs_dict 
+            
+    
+    def get_suggested_data(self):
+        return self.suggested_data
+    
+    def add_suggested_data(self, y):
+        if not isinstance(self.suggested_data, np.ndarray):
+            raise Exception("There is no suggested data for which objective values can be added")
+
+        if len(self.suggested_data) != len(y):
+            raise Exception("The provided data needs to be of the length of the suggested data")
+        
+        x = pd.DataFrame(self.suggested_data, columns=self.X.columns)
+        y = pd.DataFrame(y, columns=self.y.columns)
+
+        self.active_set_X = pd.concat([self.active_set_X, x]).reset_index(drop=True)
+        self.active_set_y = pd.concat([self.active_set_y, y]).reset_index(drop=True)
+
+        self.X = pd.concat([self.X, x]).reset_index(drop=True)
+        self.y = pd.concat([self.y, y]).reset_index(drop=True)
+
+        self.suggested_data = None
+
+    def update_wf():
+        '''
+        Extend the training set 
+        '''
+
+
 
     def automatic_al():
         pass
 
     def update_wf():
         pass
+
+class InteractiveModel():
+    '''
+    Gets an initial database. When evaluation data is queryed that is not in the database, the model asks the user 
+    to provide that data.
+    '''
+    def __init__(self, features, objective):
+        self.n_features=np.array(features).shape[1]
+        self.features=np.array(features)
+        self.objective = np.array(objective).flatten()
+
+    def evaluate(self, grid, **kwargs):
+        grid = np.array(grid)
+        if len(grid.shape)==1:
+            grid = grid.reshape(1,-1)
+        idx = []
+        for i in range(len(grid)):
+            index = np.where(np.sum(self.features, axis=1)==np.sum(grid[i]))
+            if len(index[0]) != 0:
+                index = index[0][0]
+                idx.append(index)
+            else: 
+                user_input = input("Provide Input for {}".format(grid[i]))
+                print(self.features)
+                print(grid[i])
+                self.features = np.vstack([self.features, grid[i]])
+                self.objective = np.hstack([self.objective, np.array(user_input)])
+                index = np.where(np.sum(self.features, axis=1)==np.sum(grid[i]))[0][0]
+                idx.append(index)
+
+        idx = np.array(idx)
+        return self.objective[idx]
+    
+
+class InteractiveModel_Sx():
+    pass
         
+
 

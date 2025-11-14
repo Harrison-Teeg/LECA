@@ -797,7 +797,7 @@ def predict_conductivity_from_log_conductivity_objective(x_in: pd.DataFrame, wf:
     pred = pd.concat([inv_temp, x_input, cond], axis=1)
     return pred
 
-def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[float]], beta_0_list:List[float], 
+def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict_list :List[Dict[str, List[float]]], beta_0_list:List[float], 
         temperatures:Union[int, float, List[int], List[float]]=20, steps:int=50, ylim:Optional[Tuple[float,float]]=None, 
         multiply_by_salt:bool=False, log:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
@@ -947,10 +947,11 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
     min_v = None
     
     for temp in temperatures:
-        x_input, range_key = create_input(feature_dict,steps,temp)
         min_cond = 10
         for model, model_label in zip(models, model_labels):
-            for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
+            for wf, wf_label, beta_0, feature_dict in zip(wfs, wf_labels, beta_0_list, feature_dict_list):
+                print(wf)
+                x_input, range_key = create_input(feature_dict,steps,temp)
                 if beta_0 == -1:
                     specific_prediction = predict_conductivity_from_log_conductivity_objective(x_input, wf, model, log, objective, min_max=min_max)
                 else:
@@ -984,16 +985,16 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
                 max_c = specific_prediction['conductivity'] + specific_prediction['conductivity_std']*confidence
                 ax.fill_between(specific_prediction[range_key[0]], min_c, max_c, alpha=0.2)
         
-        if indicate_max[2] != -1:
-            min_cond = indicate_max[2]
-        if min_v != None:
-            last_plot = fig.gca().lines[-1]
-            previous_color = last_plot.get_color()
-            ax.vlines(larger_value[min_v], ymin=min_cond, ymax  = larger_cond[min_v], color=previous_color, linestyles='dashed')
-            ax.vlines(larger_value[max_v], ymin=min_cond, ymax  = larger_cond[max_v], color=previous_color, linestyles='dashed')
-            print(larger_value[min_v])
-            print(larger_value[max_v])
-            print()
+                if indicate_max[2] != -1:
+                    min_cond = indicate_max[2]
+                if min_v != None:
+                    last_plot = fig.gca().lines[-1]
+                    previous_color = last_plot.get_color()
+                    ax.vlines(larger_value[min_v], ymin=min_cond, ymax  = larger_cond[min_v], color=previous_color, linestyles='dashed')
+                    ax.vlines(larger_value[max_v], ymin=min_cond, ymax  = larger_cond[max_v], color=previous_color, linestyles='dashed')
+                    print(larger_value[min_v])
+                    print(larger_value[max_v])
+                    print()
                 
     if ylim == None:
         pass
@@ -1481,7 +1482,10 @@ def visualize_arrhenius_fit(
         confidence:float = 1.0,
         save_loc: Union[str, bool] = False,
         save_idx: Union[int, float, str]=0,
-        title: Optional[str] = None
+        save_format: Optional[str]='pdf',
+        title: Optional[str] = None,
+        plot_data_info: Optional[bool] = False,
+        **kwargs
         ) -> None:
     '''
         Can be used to visualize arrhenius fit or predicted arrhenius fits.
@@ -1575,7 +1579,8 @@ def visualize_arrhenius_fit(
         
     '''
     true_label_mean = 'Mean Exp. data'
-    true_label = 'Exp. data'
+    true_label_used_data = 'Fitted Exp. data'
+    true_label_filtered_data = 'Removed Exp. data'
     
     if y_label == None:
         y_label = true_objective
@@ -1591,43 +1596,45 @@ def visualize_arrhenius_fit(
     fig, ax = plt.subplots(figsize=(6,4))
     
     for x_arrh, index, label in zip(x_arrhenius, indices, labels):
-        
         formulation = x_arrh.loc[index]
         i=0
-        for true_x in true_x_dfs:
-            if isinstance(true_x, pd.DataFrame) or isinstance(true_x, pd.Series):
-                #exp_indices = [i if np.array_equal(true_x[features].iloc[i], formulation[features]) is True else 0 for i in range(len(true_x[features]))]
-                exp_indices = np.where(np.array(true_x[features].sum(axis=1)) == formulation[features].sum())
-                #exp_indices = np.where(np.array(exp_indices) != 0)
-                ax.errorbar(true_x['inverse temperature'].iloc[exp_indices], 
-                             true_x[true_objective].iloc[exp_indices],
-                             yerr=true_x[true_objective+'_std'].iloc[exp_indices]*confidence, 
-                             fmt='o', color=colors[i], markerfacecolor='white', 
-                             label=true_label_mean)
-                true_label_mean=''
-                i+=1
-        
-        if isinstance(individual_data_df, pd.DataFrame) or isinstance(individual_data_df, pd.Series):
-            exp_indices = np.where(np.array(individual_data_df[features].sum(axis=1)) == formulation[features].sum())
-            ax.plot(individual_data_df['inverse temperature'].iloc[exp_indices], 
-                             individual_data_df[true_objective].iloc[exp_indices], 'rx', label=true_label)
-            true_label=''
-
-        if isinstance(filtered_data_df, pd.DataFrame) or isinstance(filtered_data_df, pd.Series):
-            exp_indices = np.where(np.array(filtered_data_df[features].sum(axis=1)) == formulation[features].sum())
-            ax.plot(filtered_data_df['inverse temperature'].iloc[exp_indices], 
-                             filtered_data_df[true_objective].iloc[exp_indices], 'kx', label=true_label)
-            true_label=''
 
         T, conductivity = predict_arrhenius_fit(formulation, beta_0)
 
-        ax.plot(T, unumpy.nominal_values(conductivity), '-', label=label)
+        ax.plot(T, unumpy.nominal_values(conductivity), '-', label=label, **kwargs)
         if plot_std==True:
             min_c = unumpy.nominal_values(conductivity)-unumpy.std_devs(conductivity)*confidence
             max_c = unumpy.nominal_values(conductivity)+unumpy.std_devs(conductivity)*confidence
             last_plot = fig.gca().lines[-1]
             previous_color = last_plot.get_color()
             ax.fill_between(T, min_c, max_c, color=previous_color, alpha=0.2)
+        
+
+    for true_x in true_x_dfs:
+        if isinstance(true_x, pd.DataFrame) or isinstance(true_x, pd.Series):
+            #exp_indices = [i if np.array_equal(true_x[features].iloc[i], formulation[features]) is True else 0 for i in range(len(true_x[features]))]
+            exp_indices = np.where(np.isclose(np.array(true_x[features].sum(axis=1)), formulation[features].sum()))
+            #exp_indices = np.where(np.array(exp_indices) != 0)
+            ax.errorbar(true_x['inverse temperature'].iloc[exp_indices], 
+                            true_x[true_objective].iloc[exp_indices],
+                            yerr=true_x[true_objective+'_std'].iloc[exp_indices]*confidence, 
+                            fmt='o', color=colors[i], markerfacecolor='white', 
+                            label=true_label_mean)
+            true_label_mean=''
+            i+=1
+    
+    if isinstance(individual_data_df, pd.DataFrame) or isinstance(individual_data_df, pd.Series):
+        exp_indices = np.where(np.isclose(np.array(individual_data_df[features].sum(axis=1)), formulation[features].sum()))
+        ax.plot(individual_data_df['inverse temperature'].iloc[exp_indices], 
+                            individual_data_df[true_objective].iloc[exp_indices], 'kx', label=true_label_used_data, **kwargs)
+        true_label=''
+
+    if isinstance(filtered_data_df, pd.DataFrame) or isinstance(filtered_data_df, pd.Series):
+        exp_indices = np.where(np.isclose(np.array(filtered_data_df[features].sum(axis=1)), formulation[features].sum()))
+        ax.plot(filtered_data_df['inverse temperature'].iloc[exp_indices], 
+                            filtered_data_df[true_objective].iloc[exp_indices], 'rx', label=true_label_filtered_data, **kwargs)
+        true_label=''
+
             
     ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
@@ -1635,7 +1642,8 @@ def visualize_arrhenius_fit(
     ymin,ymax = ax.get_ylim()
     xmin = xmin*1.03
     ymin = ymin/1.03
-    ax.text(xmin, ymin, s=str(x_arrhenius[0].loc[index]), fontsize=8)
+    if plot_data_info:
+        ax.text(xmin, ymin, s=str(x_arrhenius[0].loc[index]), fontsize=8)
     
     if title != None:
         ax.set_title(title)
@@ -1644,7 +1652,7 @@ def visualize_arrhenius_fit(
     ax.set_xlabel('1000 / $T$ [1/K]')
     ax.set_ylabel(y_label)
     
-    if save_loc: plt.savefig(save_loc+'arrhenius_fit_{}.pdf'.format(save_idx), bbox_inches="tight")
+    if save_loc: plt.savefig(save_loc+'arrhenius_fit_{}.{}'.format(save_idx, save_format), bbox_inches="tight")
     plt.show()
     
 def extract_results(wf:WorkFlow) -> pd.DataFrame:

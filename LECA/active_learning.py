@@ -117,7 +117,8 @@ class ActiveLearner:
                         lim_features: Optional[List[float]]=[-1,1],
                         repeat: int=1, initial_samples: int=10,  alpha: Union[float, List[float]]=10.0,
                         shuffle_sets=False, random_state: Optional[int] = None,
-                        initialization: Optional[str]='random', training_subset=None, select_test_from_sets_equally=True, cv=None,
+                        initialization: Optional[str]='random', training_subset=None, select_test_from_sets_equally=True, cv=None, 
+                        sets_for_selection=None,
                         **kwargs):
         
         """
@@ -234,55 +235,58 @@ class ActiveLearner:
         score_dict={}
 
         if select_test_from_sets_equally:
-            if initialization == 'data' and isinstance(training_subset, pd.DataFrame):
-                print('Selecting data for test set from initial set, training subset and the rest equally.')
-                rest_idx = []
-                for sample in np.array(training_subset):
-                    l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
-                    if len(l) > 0:
-                        rest_idx += l
-                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
-                X_rest = self.X.iloc[np.array(rest_idx)]
-
-                rest_idx = []
-                for sample in np.array(initial_samples):
-                    l = find_matching_indices(np.array(X_rest), np.arange(0, initial_samples.shape[1]), sample)
-                    if len(l) > 0:
-                        rest_idx += l
-                rest_idx = [l for l in range(len(X_rest)) if l not in rest_idx]
-                X_rest = X_rest.iloc[np.array(rest_idx)]
-
-                rest_idx = []
-                for sample in np.array(initial_samples):
-                    l = find_matching_indices(np.array(training_subset), np.arange(0, initial_samples.shape[1]), sample)
-                    if len(l) > 0:
-                        rest_idx += l
-                rest_idx = [l for l in range(len(training_subset)) if l not in rest_idx]
-                training_subset = training_subset.iloc[np.array(rest_idx)]
-
-            elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
-                print('Selecting data for test set from training subset and the rest equally.')
-                rest_idx = []
-                for sample in np.array(training_subset):
-                    l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
-                    if len(l) > 0:
-                        rest_idx += l
-                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
-                X_rest = self.X.iloc[np.array(rest_idx)]
-
-            elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
-                print('Selecting data for test set from initial set and the rest equally.')
-                rest_idx = []
-                for sample in np.array(initial_samples):
-                    l = find_matching_indices(np.array(self.X), np.arange(0, initial_samples.shape[1]), sample)
-                    if len(l) > 0:
-                        rest_idx += l
-                rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
-                X_rest = self.X.iloc[np.array(rest_idx)]
-
+            if isinstance(sets_for_selection, list):
+                print('Selecting data from provided extra sets equally')
             else:
-                print('Selecting data for test set from full data set randomly.')
-                X_rest = self.X
+                if initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                    print('Selecting data for test set from initial set, training subset and the rest equally.')
+                    rest_idx = []
+                    for sample in np.array(training_subset):
+                        l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
+                        if len(l) > 0:
+                            rest_idx += l
+                    rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                    X_rest = self.X.iloc[np.array(rest_idx)]
+
+                    rest_idx = []
+                    for sample in np.array(initial_samples):
+                        l = find_matching_indices(np.array(X_rest), np.arange(0, initial_samples.shape[1]), sample)
+                        if len(l) > 0:
+                            rest_idx += l
+                    rest_idx = [l for l in range(len(X_rest)) if l not in rest_idx]
+                    X_rest = X_rest.iloc[np.array(rest_idx)]
+
+                    rest_idx = []
+                    for sample in np.array(initial_samples):
+                        l = find_matching_indices(np.array(training_subset), np.arange(0, initial_samples.shape[1]), sample)
+                        if len(l) > 0:
+                            rest_idx += l
+                    rest_idx = [l for l in range(len(training_subset)) if l not in rest_idx]
+                    training_subset = training_subset.iloc[np.array(rest_idx)]
+
+                elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                    print('Selecting data for test set from training subset and the rest equally.')
+                    rest_idx = []
+                    for sample in np.array(training_subset):
+                        l = find_matching_indices(np.array(self.X), np.arange(0, training_subset.shape[1]), sample)
+                        if len(l) > 0:
+                            rest_idx += l
+                    rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                    X_rest = self.X.iloc[np.array(rest_idx)]
+
+                elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                    print('Selecting data for test set from initial set and the rest equally.')
+                    rest_idx = []
+                    for sample in np.array(initial_samples):
+                        l = find_matching_indices(np.array(self.X), np.arange(0, initial_samples.shape[1]), sample)
+                        if len(l) > 0:
+                            rest_idx += l
+                    rest_idx = [l for l in range(len(self.X)) if l not in rest_idx]
+                    X_rest = self.X.iloc[np.array(rest_idx)]
+
+                else:
+                    print('Selecting data for test set from full data set randomly.')
+                    X_rest = self.X
             
 
         #evaluate each objective separately
@@ -394,81 +398,121 @@ class ActiveLearner:
                         #e.g. use data from Gen0 + Gen1 for training and data from Gen0 + Gen1 + Gen2 for testing
                         #Furthermore, we may later also select Gen0 as initial data (see below)
                         if select_test_from_sets_equally:
-                            if not shuffle_sets:
-                                raise Exception('Shuffle_sets must be `True` to use this option')
-                            elif initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                            if isinstance(sets_for_selection, list):
                                 n_subset = len(self.test_set_X)/len(self.X)
-                                a1, t1 = train_test_split(np.array(training_subset),
-                                                            test_size = n_subset,
-                                                            random_state = random_state_act,
-                                                            shuffle=True)
-                                a2, t2 = train_test_split(np.array(initial_samples_original),
-                                                            test_size = n_subset,
-                                                            random_state = random_state_act,
-                                                            shuffle=True)
-                                if len(X_rest) > 0:
-                                    a3, t3 = train_test_split(np.array(X_rest),
+                                a_list = []
+                                t_list = []
+                                for s, set in enumerate(sets_for_selection):
+                                    a, t = train_test_split(np.array(set),
+                                                                test_size = n_subset,
+                                                                random_state = random_state_act+s,
+                                                                shuffle=True)
+                                    a_list.append(a)
+                                    t_list.append(t)
+                                active_set = np.vstack(a_list)
+                                test_set = np.vstack(t_list)
+                                
+                                #Second, select a training subset from the active set
+                                if isinstance(training_subset, pd.DataFrame):
+                                    active_set_indices = []
+                                    for sample in np.array(training_subset):
+                                        l = find_matching_indices(active_set, np.arange(0, training_subset.shape[1]), sample)
+                                        if len(l) > 0:
+                                            active_set_indices += l
+                                    active_set = active_set[np.array(active_set_indices)]
+
+                                #Third, select the initial data points
+                                #The initial data points must be in the training subset
+                                if initialization == 'data':
+                                    initial_sample_indices = []
+                                    for sample in np.array(initial_samples_original):
+                                        l = find_matching_indices(active_set, np.arange(0, initial_samples_original.shape[1]), sample)
+                                        if len(l) > 0:
+                                            initial_sample_indices += l
+
+                                    initial_samples = np.array(initial_sample_indices)
+                                    #print(initial_samples)
+                                    active_learning_steps = len(active_set)-len(initial_samples)
+                                    #print(active_learning_steps)
+                                else:
+                                    active_learning_steps = len(active_set)-initial_samples
+
+                            else:
+                                if not shuffle_sets:
+                                    raise Exception('Shuffle_sets must be `True` to use this option')
+                                elif initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                                    n_subset = len(self.test_set_X)/len(self.X)
+                                    a1, t1 = train_test_split(np.array(training_subset),
                                                                 test_size = n_subset,
                                                                 random_state = random_state_act,
                                                                 shuffle=True)
-                                    active_set = np.vstack([a2, a1])
-                                    test_set = np.vstack([t1, t2, t3])
-                                else:
-                                    active_set = np.vstack([a2, a1])
-                                    test_set = np.vstack([t1, t2])
+                                    a2, t2 = train_test_split(np.array(initial_samples_original),
+                                                                test_size = n_subset,
+                                                                random_state = random_state_act,
+                                                                shuffle=True)
+                                    if len(X_rest) > 0:
+                                        a3, t3 = train_test_split(np.array(X_rest),
+                                                                    test_size = n_subset,
+                                                                    random_state = random_state_act,
+                                                                    shuffle=True)
+                                        active_set = np.vstack([a2, a1])
+                                        test_set = np.vstack([t1, t2, t3])
+                                    else:
+                                        active_set = np.vstack([a2, a1])
+                                        test_set = np.vstack([t1, t2])
 
-                                initial_samples = np.arange(len(a2))
-                                #print(initial_samples)
-                                active_learning_steps = len(active_set)-len(initial_samples)
+                                    initial_samples = np.arange(len(a2))
+                                    #print(initial_samples)
+                                    active_learning_steps = len(active_set)-len(initial_samples)
+                                    
+                                    
+                                elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                                    n_subset = len(self.test_set_X)/len(self.X)
+                                    a1, t1 = train_test_split(np.array(training_subset),
+                                                                test_size = n_subset,
+                                                                random_state = random_state_act,
+                                                                shuffle=True)
+                                    
+                                    if len(X_rest) > 0:
+                                        a2, t2 = train_test_split(np.array(X_rest),
+                                                                    test_size = n_subset,
+                                                                    random_state = random_state_act,
+                                                                    shuffle=True)
+                                        
+                                        active_set = a1
+                                        test_set = np.vstack([t1, t2])
+                                    else:
+                                        active_set = a1
+                                        test_set = t1
+
+                                    active_learning_steps = len(active_set)-initial_samples
                                 
-                                
-                            elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
-                                n_subset = len(self.test_set_X)/len(self.X)
-                                a1, t1 = train_test_split(np.array(training_subset),
-                                                            test_size = n_subset,
-                                                            random_state = random_state_act,
-                                                            shuffle=True)
-                                
-                                if len(X_rest) > 0:
+
+                                elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                                    n_subset = len(self.test_set_X)/len(self.X)
+                                    a1, t1 = train_test_split(np.array(initial_samples_original),
+                                                                test_size = n_subset,
+                                                                random_state = random_state_act,
+                                                                shuffle=True)
                                     a2, t2 = train_test_split(np.array(X_rest),
                                                                 test_size = n_subset,
                                                                 random_state = random_state_act,
                                                                 shuffle=True)
                                     
-                                    active_set = a1
+                                    active_set = np.vstack([a1, a2])
                                     test_set = np.vstack([t1, t2])
+
+                                    initial_samples = np.arange(len(a1))
+                                    active_learning_steps = len(active_set)-len(initial_samples)
+                                    
+
                                 else:
-                                    active_set = a1
-                                    test_set = t1
-
-                                active_learning_steps = len(active_set)-initial_samples
-                            
-
-                            elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
-                                n_subset = len(self.test_set_X)/len(self.X)
-                                a1, t1 = train_test_split(np.array(initial_samples_original),
-                                                            test_size = n_subset,
-                                                            random_state = random_state_act,
-                                                            shuffle=True)
-                                a2, t2 = train_test_split(np.array(X_rest),
-                                                            test_size = n_subset,
-                                                            random_state = random_state_act,
-                                                            shuffle=True)
-                                
-                                active_set = np.vstack([a1, a2])
-                                test_set = np.vstack([t1, t2])
-
-                                initial_samples = np.arange(len(a1))
-                                active_learning_steps = len(active_set)-len(initial_samples)
-                                
-
-                            else:
-                                active_set, test_set = train_test_split(np.array(self.X),
-                                                                        test_size = len(self.test_set_X),
-                                                                        random_state = random_state_act,
-                                                                        shuffle=True)
-                                
-                                active_learning_steps = len(active_set)-initial_samples
+                                    active_set, test_set = train_test_split(np.array(self.X),
+                                                                            test_size = len(self.test_set_X),
+                                                                            random_state = random_state_act,
+                                                                            shuffle=True)
+                                    
+                                    active_learning_steps = len(active_set)-initial_samples
 
 
                         else:
@@ -559,137 +603,180 @@ class ActiveLearner:
                     #e.g. use data from Gen0 + Gen1 for training and data from Gen0 + Gen1 + Gen2 for testing
                     #Furthermore, we may later also select Gen0 as initial data (see below)
                     if select_test_from_sets_equally:
-                        if not shuffle_sets:
-                            raise Exception('Shuffle_sets must be `True` to use this option')
-                        elif initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                        
+                        if isinstance(sets_for_selection, list):
+                            n_subset = len(self.test_set_X)/len(self.X)
                             fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
-                            training_subset_arr = np.array(training_subset)
-                            init_arr = np.array(initial_samples_original)
-                            rest_arr = np.array(X_rest)
-                            a1_list = []
-                            a2_list = []
-                            a3_list = []
-                            t1_list = []
-                            t2_list = []
-                            t3_list = []
-                            for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
-                                a1 = training_subset_arr[train_index]
-                                t1 = training_subset_arr[test_index]
-                                a1_list.append(a1)
-                                t1_list.append(t1)
+                            active_folds = []
+                            test_folds = []
+                            a_list = []
+                            t_list = []
+                            for s, set in enumerate(sets_for_selection):
+                                a1_list = []
+                                t1_list = []
+                                for _, (train_index, test_index) in enumerate(fold.split(set)):
+                                    a1 = set[train_index]
+                                    t1 = set[test_index]
+                                    a1_list.append(a1)
+                                    t1_list.append(t1)
 
-                            for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
-                                a2 = training_subset_arr[train_index]
-                                t2 = training_subset_arr[test_index]
-                                a2_list.append(a2)
-                                t2_list.append(t2)
+                                a_list.append(a1_list)
+                                t_list.append(t1_list)                            
 
-                            if len(X_rest) > 0:
-                                for _, (train_index, test_index) in enumerate(fold.split(rest_arr)):
-                                    a3 = init_arr[train_index]
-                                    t3 = init_arr[test_index]
-                                    a3_list.append(a3)
-                                    t3_list.append(t3)
-                            
                             for c in range(cv):
-                                a1 = a1_list[c]
-                                t1 = t1_list[c]
-                                a2 = a2_list[c]
-                                t2 = t2_list[c]
+                                a_rel_list = []
+                                t_rel_list = []
+                                for s, set in enumerate(sets_for_selection):
+                                    a_rel_list.append(a_list[s][c])
+                                    t_rel_list.append(t_list[s][c])
 
-                                if len(X_rest) > 0:
-                                    a3 = a3_list[c]
-                                    t3 = t3_list[c]
-                                    active = np.vstack([a2, a1])
-                                    test = np.vstack([t1, t2, t3])
-                                    
-                                else:
-                                    active = np.vstack([a2, a1])
-                                    test = np.vstack([t1, t2])
+                                active = np.vstack(a_rel_list)
+                                test = np.vstack(t_rel_list)
+                                print('Size of Sets in fold {}'.format(c))
+                                print(len(active))
+                                print(len(test))
 
                                 active_folds.append(active)
                                 test_folds.append(test)    
-                            
-                            
-                        elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
-                            fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
-                            training_subset_arr = np.array(training_subset)
-                            rest_arr = np.array(X_rest)
-                            a1_list = []
-                            a2_list = []
-                            t1_list = []
-                            t2_list = []
-                            for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
-                                a1 = training_subset_arr[train_index]
-                                t1 = training_subset_arr[test_index]
-                                a1_list.append(a1)
-                                t1_list.append(t1)
 
-                            if len(X_rest) > 0:
+                        else:
+                            if not shuffle_sets:
+                                raise Exception('Shuffle_sets must be `True` to use this option')
+                            elif initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                                fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
+                                active_folds = []
+                                test_folds = []
+                                training_subset_arr = np.array(training_subset)
+                                init_arr = np.array(initial_samples_original)
+                                rest_arr = np.array(X_rest)
+                                a1_list = []
+                                a2_list = []
+                                a3_list = []
+                                t1_list = []
+                                t2_list = []
+                                t3_list = []
+                                for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
+                                    a1 = training_subset_arr[train_index]
+                                    t1 = training_subset_arr[test_index]
+                                    a1_list.append(a1)
+                                    t1_list.append(t1)
+
+                                for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
+                                    a2 = training_subset_arr[train_index]
+                                    t2 = training_subset_arr[test_index]
+                                    a2_list.append(a2)
+                                    t2_list.append(t2)
+
+                                if len(X_rest) > 0:
+                                    for _, (train_index, test_index) in enumerate(fold.split(rest_arr)):
+                                        a3 = init_arr[train_index]
+                                        t3 = init_arr[test_index]
+                                        a3_list.append(a3)
+                                        t3_list.append(t3)
+                                
+                                for c in range(cv):
+                                    a1 = a1_list[c]
+                                    t1 = t1_list[c]
+                                    a2 = a2_list[c]
+                                    t2 = t2_list[c]
+
+                                    if len(X_rest) > 0:
+                                        a3 = a3_list[c]
+                                        t3 = t3_list[c]
+                                        active = np.vstack([a2, a1])
+                                        test = np.vstack([t1, t2, t3])
+                                        
+                                    else:
+                                        active = np.vstack([a2, a1])
+                                        test = np.vstack([t1, t2])
+
+                                    active_folds.append(active)
+                                    test_folds.append(test)    
+                            
+                            
+                            elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                                fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
+                                active_folds = []
+                                test_folds = []
+                                training_subset_arr = np.array(training_subset)
+                                rest_arr = np.array(X_rest)
+                                a1_list = []
+                                a2_list = []
+                                t1_list = []
+                                t2_list = []
+                                for _, (train_index, test_index) in enumerate(fold.split(training_subset_arr)):
+                                    a1 = training_subset_arr[train_index]
+                                    t1 = training_subset_arr[test_index]
+                                    a1_list.append(a1)
+                                    t1_list.append(t1)
+
+                                if len(X_rest) > 0:
+                                    for _, (train_index, test_index) in enumerate(fold.split(rest_arr)):
+                                        a2 = init_arr[train_index]
+                                        t2 = init_arr[test_index]
+                                        a2_list.append(a2)
+                                        t2_list.append(t2)
+                                
+                                for c in range(cv):
+                                    a1 = a1_list[c]
+                                    t1 = t1_list[c]
+
+
+                                    if len(X_rest) > 0:
+                                        a2 = a2_list[c]
+                                        t2 = t2_list[c]
+                                        active = a1
+                                        test = np.vstack([t1, t2])
+                                        
+                                    else:
+                                        active = a1
+                                        test = t1
+                                    active_folds.append(active)
+                                    test_folds.append(test)                        
+
+                            elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                                fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
+                                active_folds = []
+                                test_folds = []
+                                init_arr = np.array(initial_samples_original)
+                                rest_arr = np.array(X_rest)
+                                a1_list = []
+                                a2_list = []
+                                t1_list = []
+                                t2_list = []
+                                for _, (train_index, test_index) in enumerate(fold.split(init_arr)):
+                                    a1 = init_arr[train_index]
+                                    t1 = init_arr[test_index]
+                                    a1_list.append(a1)
+                                    t1_list.append(t1)
+
                                 for _, (train_index, test_index) in enumerate(fold.split(rest_arr)):
                                     a2 = init_arr[train_index]
                                     t2 = init_arr[test_index]
-                                    a2_list.append(a2)
-                                    t2_list.append(t2)
-                            
-                            for c in range(cv):
-                                a1 = a1_list[c]
-                                t1 = t1_list[c]
-
-
-                                if len(X_rest) > 0:
+                                    a2_list.append(a1)
+                                    t2_list.append(t1)
+                                
+                                for c in range(cv):
+                                    a1 = a1_list[c]
                                     a2 = a2_list[c]
+                                    t1 = t1_list[c]
                                     t2 = t2_list[c]
-                                    active = a1
+
+                                    active = np.vstack([a1, a2])
                                     test = np.vstack([t1, t2])
-                                    
-                                else:
-                                    active = a1
-                                    test = t1
-                                active_folds.append(active)
-                                test_folds.append(test)                        
+                                    active_folds.append(active)
+                                    test_folds.append(test)                            
 
-                        elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
-                            fold = KFold(n_splits=cv, shuffle=True, random_state = random_state)
-                            init_arr = np.array(initial_samples_original)
-                            rest_arr = np.array(X_rest)
-                            a1_list = []
-                            a2_list = []
-                            t1_list = []
-                            t2_list = []
-                            for _, (train_index, test_index) in enumerate(fold.split(init_arr)):
-                                a1 = init_arr[train_index]
-                                t1 = init_arr[test_index]
-                                a1_list.append(a1)
-                                t1_list.append(t1)
-
-                            for _, (train_index, test_index) in enumerate(fold.split(rest_arr)):
-                                a2 = init_arr[train_index]
-                                t2 = init_arr[test_index]
-                                a2_list.append(a1)
-                                t2_list.append(t1)
-                            
-                            for c in range(cv):
-                                a1 = a1_list[c]
-                                a2 = a2_list[c]
-                                t1 = t1_list[c]
-                                t2 = t2_list[c]
-
-                                active = np.vstack([a1, a2])
-                                test = np.vstack([t1, t2])
-                                active_folds.append(active)
-                                test_folds.append(test)                            
-
-                        else:
-                            fold = KFold(n_splits=cv, shuffle=False)
-                            active_folds = []
-                            test_folds = []
-                            X_arr = np.array(self.X)
-                            for _, (train_index, test_index) in enumerate(fold.split(X_arr)):
-                                active = X_arr[train_index]
-                                test = X_arr[test_index]
-                                active_folds.append(active)
-                                test_folds.append(test)
+                            else:
+                                fold = KFold(n_splits=cv, shuffle=False)
+                                active_folds = []
+                                test_folds = []
+                                X_arr = np.array(self.X)
+                                for _, (train_index, test_index) in enumerate(fold.split(X_arr)):
+                                    active = X_arr[train_index]
+                                    test = X_arr[test_index]
+                                    active_folds.append(active)
+                                    test_folds.append(test)
 
 
                     else:
@@ -717,25 +804,52 @@ class ActiveLearner:
 
                         for kk in range(repeat):
                             print('Iteration {}/{}'.format(i+1, int(cv*repeat)))
-                            random_state_act = random_state+kk if random_state != None else None
+                            random_state_act = random_state+i if random_state != None else None
                             print('Random State: {}'.format(random_state))
 
                             if select_test_from_sets_equally:
+                                if isinstance(sets_for_selection, list):
+                                    #Second, select a training subset from the active set
+                                    if isinstance(training_subset, pd.DataFrame):
+                                        active_set_indices = []
+                                        for sample in np.array(training_subset):
+                                            l = find_matching_indices(active_set, np.arange(0, training_subset.shape[1]), sample)
+                                            if len(l) > 0:
+                                                active_set_indices += l
+                                        active_set = active_set[np.array(active_set_indices)]
 
-                                if initialization == 'data' and isinstance(training_subset, pd.DataFrame):
-                                    initial_samples = np.arange(len(a2))
-                                    #print(initial_samples)
-                                    active_learning_steps = len(active_set)-len(initial_samples)
+                                    #Third, select the initial data points
+                                    #The initial data points must be in the training subset
+                                    if initialization == 'data':
+                                        initial_sample_indices = []
+                                        for sample in np.array(initial_samples_original):
+                                            l = find_matching_indices(active_set, np.arange(0, initial_samples_original.shape[1]), sample)
+                                            if len(l) > 0:
+                                                initial_sample_indices += l
 
-                                elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
-                                    active_learning_steps = len(active_set)-initial_samples
-
-                                elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
-                                    initial_samples = np.arange(len(a1_list[c]))
-                                    active_learning_steps = len(active_set)-len(initial_samples)
+                                        initial_samples = np.array(initial_sample_indices)
+                                        #print(initial_samples)
+                                        active_learning_steps = len(active_set)-len(initial_samples)
+                                        #print(active_learning_steps)
+                                    else:
+                                        active_learning_steps = len(active_set)-initial_samples
 
                                 else:
-                                    active_learning_steps = len(active_set)-initial_samples
+
+                                    if initialization == 'data' and isinstance(training_subset, pd.DataFrame):
+                                        initial_samples = np.arange(len(a2))
+                                        #print(initial_samples)
+                                        active_learning_steps = len(active_set)-len(initial_samples)
+
+                                    elif initialization != 'data' and isinstance(training_subset, pd.DataFrame):
+                                        active_learning_steps = len(active_set)-initial_samples
+
+                                    elif initialization == 'data' and not isinstance(training_subset, pd.DataFrame):
+                                        initial_samples = np.arange(len(a1_list[c]))
+                                        active_learning_steps = len(active_set)-len(initial_samples)
+
+                                    else:
+                                        active_learning_steps = len(active_set)-initial_samples
                             
                             else:
                                 #Second, select a training subset from the active set

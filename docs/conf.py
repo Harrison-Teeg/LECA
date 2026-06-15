@@ -12,7 +12,7 @@
 #
 import os
 import sys
-autodoc_mock_imports = ["hdbscan", "GPy", "GPyOpt", 'mapie', 'ipywidgets']
+autodoc_mock_imports = ["hdbscan", "GPy", "GPyOpt", 'mapie', 'ipywidgets', 'PyALAF']
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.insert(0, os.path.abspath(os.path.join('..', 'LECA')))
 sys.path.insert(0, os.path.abspath('../..'))

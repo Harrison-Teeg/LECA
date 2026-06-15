@@ -256,7 +256,7 @@ def comparative_datasize_performance(
                     plt.hlines(np.power(mean_deviations, 2), 0, N_max, linestyles='-', color='black', label=r'$\eta_{measured}^2$')
             plt.xticks()
             plt.yticks()
-            plt.legend(fontsize=12)
+            plt.legend(fontsize=12, frameon=True)
             if y_lim != None:
                 plt.ylim(y_lim)
             plt.tight_layout()
@@ -459,7 +459,7 @@ def datasize_performance(
             plt.plot(x_fit, -slope*x_fit + eta_squared, label="E(Predict) expect")
             plt.xticks()
             plt.yticks()
-            plt.legend(fontsize=12)
+            plt.legend(fontsize=12, frameon=True)
             plt.tight_layout()
             if save_loc: plt.savefig(save_loc + 'N_plot-' + estimator_name + "-" + obj + ".pdf", bbox_inches="tight")
             plt.show()
@@ -552,7 +552,7 @@ def performance_plot(wf: WorkFlow, metric: str = "MSE") -> None:
         ax.set_ylabel('Model')
         ax.set_xlim(right=1.5)
         ax.set_yticks(y, labels)
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper right', frameon=True)
 
         label_fmt = {'label_type': 'edge', 'padding': 5}
         ax.bar_label(rects_time, labels=sorted_scores.loc['time'].map(lambda x: '{:.2e}'.format(x)), **label_fmt)
@@ -1000,8 +1000,10 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict_list :List[Dict
         pass
     else:
         ax.set_ylim(ylim)
-
-    ax.legend(loc='upper right')
+    if log:
+        ax.legend(loc='lower right', frameon=True)
+    else:
+        ax.legend(loc='upper right', frameon=True)
     ax.set_xlabel('$'+range_key[0].replace('_','_\\mathrm{')+'}$')
     if multiply_by_salt == True:
         if log==False:
@@ -1161,7 +1163,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         ax[i].set_ylim(ylim)
     
     for i in range(len_o):
-        ax[i].legend(loc='best')
+        ax[i].legend(loc='best', frameon=True)
         ax[i].set_xlabel('$'+range_key[0].replace('_','_\\mathrm{')+'}$')
         ax[i].set_ylabel(objectives[i])
         ax[i].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -1648,7 +1650,7 @@ def visualize_arrhenius_fit(
     if title != None:
         ax.set_title(title)
 
-    ax.legend(loc='upper right', fontsize=12)
+    ax.legend(loc='upper right', fontsize=12, frameon=True)
     ax.set_xlabel('1000 / $T$ [1/K]')
     ax.set_ylabel(y_label)
     

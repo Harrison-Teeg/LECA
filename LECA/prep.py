@@ -858,7 +858,7 @@ def direct_sample_arrhenius(
         max_error: Optional[float] = None,
         inverse_temp: str = 'inverse temperature', min_samples: int = 5, beta_0: Optional[float] = None,
         n_fits: int = 50, random_state: Optional[int] = None,
-        save_loc: Union[str, bool] = False
+        save_loc: Union[str, bool] = False, return_corr_plot_data: Optional[bool] = False
     ) -> Tuple[float, List[str], List[str], pd.DataFrame]:
     """
     Transform objective function into Arrhenius fitted surrogate model (:math:`log(\\sigma) \\rightarrow S_0, S_1, S_2`). This function expects repeated measurements of the objective function in the form
@@ -1060,8 +1060,10 @@ def direct_sample_arrhenius(
     plt.tight_layout()
     if save_loc: plt.savefig(save_loc + 'direct_arrhenius_MAE_hist.pdf')
     plt.show()
-
-    return beta_0, arrhenius_group, objective_list, data
+    if return_corr_plot_data:
+        return beta_0, arrhenius_group, objective_list, data, (1000/np.array(correlation['beta_0'])-273.15), correlation['corr']
+    else:
+        return beta_0, arrhenius_group, objective_list, data
 
 def direct_sample_arrhenius_depreciated(
         data: pd.DataFrame, feature_list: Union[str, List[str]], objective: str = 'conductivity',

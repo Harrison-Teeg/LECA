@@ -753,10 +753,13 @@ class WorkFlow:
                                     return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
 
                         else: # If not AlphaGPR
-                            cv_X_scaled = scaler.transform(cv_X)
-                            print('Scaled data', flush=True)
-                            print(cv_X_scaled.shape, flush=True)
-                            print(cv_X_scaled, flush=True)
+                            if scaler != None:
+                                cv_X_scaled = scaler.transform(cv_X)
+                            else:
+                                cv_X_scaled = cv_X
+                            #print('Scaled data', flush=True)
+                            #print(cv_X_scaled.shape, flush=True)
+                            #print(cv_X_scaled, flush=True)
                             store['metrics'] = cross_validate(regr, cv_X_scaled, loc_y, cv=GroupKFold(cv),
                                     groups=self.groups, return_train_score=True, scoring=['neg_mean_absolute_error', 'neg_mean_squared_error', 'r2'],
                                     return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
@@ -2107,6 +2110,10 @@ class WorkFlow:
         n_obj = len(to_list(objective_funcs))
 
         fig, ax = plt.subplots(1, n_obj, figsize=(4*n_obj, 4))
+
+        scores_r2 = np.zeros(len(to_list(objective_funcs)))
+        scores_mae = np.zeros(len(to_list(objective_funcs)))
+        scores_mse = np.zeros(len(to_list(objective_funcs)))
         
         for i, obj in enumerate(to_list(objective_funcs)):
             title = obj +": "
@@ -2130,6 +2137,9 @@ class WorkFlow:
                 line = slope*np.array(x)+intercept
                 MAE = mean_absolute_error(np.asarray(x), np.asarray(y))
                 MSE = mean_squared_error(np.asarray(x), np.asarray(y))
+                scores_r2[i] = r2_score(x,y)
+                scores_mae[i] = MAE
+                scores_mse[i] = MSE
                 loc_ax.scatter(x, y, label='Validation', color='red', alpha=0.5, s=25)
                 #loc_ax.plot(x, line)#, label="r$^2$={}\nMAE={}\nMSE={}".format(np.round(r_value,3), np.round(MAE,3), np.round(MSE,5)))
                 title = title + r"r$^2$=" + str(np.round(r2_score(x,y),3))
@@ -2143,8 +2153,8 @@ class WorkFlow:
         if save_loc: plt.savefig(save_loc + obj.replace("/", "-") + '-unseen-validate.pdf', bbox_inches='tight')
         plt.show()
 
-        print("Validation set:\nMAE: {}\nMSE: {}".format(MAE,MSE))
-        return {"r2": r2_score(x,y), "MAE": MAE, "MSE": MSE, "RMSE": np.sqrt(MSE)}
+        print("Validation set:\nMAE: {}\nMSE: {}".format(scores_mae, scores_mse))
+        return {"r2": scores_r2, "MAE": scores_mae, "MSE": scores_mse, "RMSE": np.sqrt(scores_mse)}
 
     def _datasize_performance(self, polynomials, objective, test_size=1, N_min=None, sample_count=5, repeat=100):
         """

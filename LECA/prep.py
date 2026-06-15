@@ -858,7 +858,7 @@ def direct_sample_arrhenius(
         max_error: Optional[float] = None,
         inverse_temp: str = 'inverse temperature', min_samples: int = 5, beta_0: Optional[float] = None,
         n_fits: int = 50, random_state: Optional[int] = None,
-        save_loc: Union[str, bool] = False
+        save_loc: Union[str, bool] = False, return_corr_plot_data: Optional[bool] = False
     ) -> Tuple[float, List[str], List[str], pd.DataFrame]:
     """
     Transform objective function into Arrhenius fitted surrogate model (:math:`log(\\sigma) \\rightarrow S_0, S_1, S_2`). This function expects repeated measurements of the objective function in the form
@@ -972,7 +972,6 @@ def direct_sample_arrhenius(
         if len(inv_temps) < min_samples: return None # only take the data with n=min_samples or more measured points
         # We create a list of sub-dataframes with each df having matching inverse temperatures
         grouped_inv_temps = [group_df.loc[group_df['inverse temperature'] == inv_temp] for inv_temp in inv_temps]
-
         # Generate n_fits randomly sampled datasets to estimate S_x and uncertainties
         results = pd.DataFrame()#columns=(arrhenius_group + objective_list + ['MAE']))
         feature_df = group_df[arrhenius_group].iloc[0]
@@ -1013,7 +1012,6 @@ def direct_sample_arrhenius(
 
     ## passes dataframe of group matching the groupby criteria (all vals are equal in these columns) to function arrhenius_fit
     data = data.groupby(arrhenius_group).apply(perturbed_fit).dropna().reset_index(drop=True)
-    
     # Show S0 / S1 correlation as a function of selected beta_0
     if beta_0 == None:
         #calculate beta_0 with minimal S0:S1 correlation
@@ -1040,7 +1038,6 @@ def direct_sample_arrhenius(
         plt.tight_layout()
         if save_loc: plt.savefig(save_loc + 'direct_onset_temp_plot.pdf')
         plt.show()
-
     data = coef_shift(data, default_beta_0, beta_0) # finalize S0 / S1 / S2 coeffs to either manually selected or min-correlated value
     means = data.groupby(arrhenius_group)[objective_list + ['MAE', 'R2', 'Mean Absolute (Relative) Error', 'Mean Squared (Relative) Error']].apply(np.mean, axis=0).reset_index()
     stds = data.groupby(arrhenius_group)[objective_list].apply(np.std, ddof=1).reset_index(drop=True)
@@ -1063,8 +1060,10 @@ def direct_sample_arrhenius(
     plt.tight_layout()
     if save_loc: plt.savefig(save_loc + 'direct_arrhenius_MAE_hist.pdf')
     plt.show()
-
-    return beta_0, arrhenius_group, objective_list, data
+    if return_corr_plot_data:
+        return beta_0, arrhenius_group, objective_list, data, (1000/np.array(correlation['beta_0'])-273.15), correlation['corr']
+    else:
+        return beta_0, arrhenius_group, objective_list, data
 
 def direct_sample_arrhenius_depreciated(
         data: pd.DataFrame, feature_list: Union[str, List[str]], objective: str = 'conductivity',

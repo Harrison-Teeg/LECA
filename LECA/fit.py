@@ -198,6 +198,8 @@ class WorkFlow:
             if composition_features != None: # If we want to train/validate split considering composition groups:
                 gss = GroupShuffleSplit(n_splits=1, test_size=validation_holdout, random_state=random_state)
                 train_index, validate_index = next(gss.split(X, groups=groups)) # 1 element generator
+                self.train_index = train_index
+                self.validate_index = validate_index
                 #Note, change X_val before X of course as X is source
                 X_validate = X.iloc[validate_index]
                 X = X.iloc[train_index]
@@ -302,6 +304,8 @@ class WorkFlow:
             if composition_features != None: # If we want to train/validate split considering composition groups:
                 gss = GroupShuffleSplit(n_splits=1, test_size=validation_holdout, random_state=random_state)
                 train_index, validate_index = next(gss.split(X, groups=groups)) # 1 element generator
+                self.train_index = train_index
+                self.validate_index = validate_index
                 #Note, change X_val before X of course as X is source
                 X_validate = X.iloc[validate_index]
                 X = X.iloc[train_index]
@@ -344,6 +348,56 @@ class WorkFlow:
             self.poly_validate = pd.DataFrame(self.poly_scaler.transform(self.poly_transformer.transform(X_validate)))
             self.y_validate = y_validate
             self.std_validate = std_validate
+
+    def extend_data_set(self, data_new):
+        """Extend the training data set with new data, e.g. from Active Learning, while the validation data set
+        remains the same.
+
+        Parameters
+        ----------
+        data_new : pd.DataFrame
+            pd.DataFrame with a similar structure to the initial data frame.
+        """
+        objective_list = self.objective_list
+        features = self.features
+        composition_features = self.composition_features
+        data = pd.concat([self.data, data_new]).reset_index(drop=True)
+        
+        X = self.data[features]
+        y = self.data[objective_list]
+        std = data[[obj + "_std" for obj in objective_list if obj + "_std" in data.columns]]
+
+        # Create a dataframe of data index -> group (where group represents a unique ID for a unique composition)
+        if composition_features != None: groups = X.groupby(composition_features).ngroup()
+
+        print("New indices: {}".format(data.iloc[len(self.data):].index))
+        train_index = np.concatenate([self.train_index, data.iloc[len(self.data):].index])
+
+        self.data = data
+
+        X = X.iloc[train_index]
+        y = y.iloc[train_index]
+        std = std.iloc[train_index]
+        if composition_features != None:
+            groups = groups.iloc[train_index]
+            X,y,std,groups = shuffle(X,y,std,groups, random_state=self._random_state)
+            self.groups = groups.reset_index(drop=True)
+        else:
+            X,y,std = shuffle(X,y,std, random_state=self._random_state)
+
+        #Generate polynomials
+        poly_X = pd.DataFrame(self.poly_transformer.fit_transform(X))
+
+        ##Scale (on training set to avoid test/val info leaking into models)
+        self.X = pd.DataFrame(self.scaler.transform(X), columns=X.columns)
+        self.poly_X = pd.DataFrame(self.poly_scaler.transform(poly_X))
+     
+        # Save rest of attributes
+        self.X_unscaled = X
+        self.poly_unscaled = poly_X
+        self.y = y
+        self.std = std
+
             
     def retrain(self):
         """
@@ -611,7 +665,7 @@ class WorkFlow:
                     store['uncertainty'] = mapie
 
     def cross_validate(self,
-            cv: int = 5, objective_funcs: Optional[Union[str, List[str]]] = None, verbose: bool = True
+            cv: int = 5, objective_funcs: Optional[Union[str, List[str]]] = None, verbose: bool = True, scaler=None,
         ) -> None:
         """
         Method to score regression model performance with k-fold cross validation.
@@ -659,7 +713,10 @@ class WorkFlow:
             for regr_name, store in self.results[obj].items():
                 if not store['metrics']:
                     model = store['model']
-                    regr = Pipeline([('scaler', preprocessing.StandardScaler()), ('model', model)])
+                    if scaler==None:
+                        regr = Pipeline([('scaler', preprocessing.StandardScaler()), ('model', model)])
+                    else:
+                        regr = Pipeline([('model', model)])
                     cv_X = X
                     loc_y = y[obj]
                     return_estimator = False
@@ -696,11 +753,19 @@ class WorkFlow:
                                     return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
 
                         else: # If not AlphaGPR
-                            store['metrics'] = cross_validate(regr, cv_X, loc_y, cv=GroupKFold(cv),
+                            if scaler != None:
+                                cv_X_scaled = scaler.transform(cv_X)
+                            else:
+                                cv_X_scaled = cv_X
+                            #print('Scaled data', flush=True)
+                            #print(cv_X_scaled.shape, flush=True)
+                            #print(cv_X_scaled, flush=True)
+                            store['metrics'] = cross_validate(regr, cv_X_scaled, loc_y, cv=GroupKFold(cv),
                                     groups=self.groups, return_train_score=True, scoring=['neg_mean_absolute_error', 'neg_mean_squared_error', 'r2'],
                                     return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
 
                     else: # If no groups
+                        print('No groups present')
                         n_samples = cv_X.shape[0]
                         if cv > n_samples:
                             print('Reducing CV-folds to ' + str(n_samples) + ', since dataset only has that many unique samples')
@@ -724,9 +789,19 @@ class WorkFlow:
                                     return_train_score=True, scoring={'neg_mean_absolute_error':neg_abs, 'neg_mean_squared_error':neg_square, 'r2':r2},
                                     return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
                         else:
-                            store['metrics'] = cross_validate(regr, cv_X, loc_y, cv=cv,
-                                    return_train_score=True, scoring=['neg_mean_absolute_error', 'neg_mean_squared_error', 'r2'],
-                                    return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
+                            if scaler == None:
+                                store['metrics'] = cross_validate(regr, cv_X, loc_y, cv=cv,
+                                        return_train_score=True, scoring=['neg_mean_absolute_error', 'neg_mean_squared_error', 'r2'],
+                                        return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
+                            else:
+                                cv_X_scaled = scaler.transform(cv_X)
+                                print('Scaled data', flush=True)
+                                print(cv_X_scaled.shape, flush=True)
+                                print(cv_X_scaled, flush=True)
+                                store['metrics'] = cross_validate(regr, cv_X_scaled, loc_y, cv=cv,
+                                        return_train_score=True, scoring=['neg_mean_absolute_error', 'neg_mean_squared_error', 'r2'],
+                                        return_estimator=True, n_jobs=self._n_jobs, return_indices=True, error_score='raise')
+
                     if verbose:
                         print("{} performance for objective function: {}".format(regr_name, obj))
                         print("{} performance for objective function: {}".format(regr_name, obj))
@@ -800,7 +875,7 @@ class WorkFlow:
         return results
 
 
-    def mean_cv_scores(self, objective_funcs: Optional[Union[str, List[str]]] = None, cv: Optional[int] = 5, verbose: bool = True) -> Dict[str, pd.DataFrame]:
+    def mean_cv_scores(self, objective_funcs: Optional[Union[str, List[str]]] = None, cv: Optional[int] = 5, verbose: bool = True, scaler=None) -> Dict[str, pd.DataFrame]:
         """
         Method to calculate the mean scores and Standard Error of the Mean (SEM) of WorkFlow models.
         The metrics calculated are: time, MAE train, MAE test, MSE train, MSE test, R2 train, R2 test.
@@ -842,7 +917,7 @@ class WorkFlow:
         """
         if objective_funcs == None: objective_funcs = list(self.y.columns)
         #Auto-run cv just in case
-        self.cross_validate(cv=cv, objective_funcs=objective_funcs, verbose=verbose)
+        self.cross_validate(cv=cv, objective_funcs=objective_funcs, verbose=verbose, scaler=scaler)
         scores = {}
         for obj, models in self.results.items():
             if not obj in objective_funcs: continue
@@ -2035,6 +2110,10 @@ class WorkFlow:
         n_obj = len(to_list(objective_funcs))
 
         fig, ax = plt.subplots(1, n_obj, figsize=(4*n_obj, 4))
+
+        scores_r2 = np.zeros(len(to_list(objective_funcs)))
+        scores_mae = np.zeros(len(to_list(objective_funcs)))
+        scores_mse = np.zeros(len(to_list(objective_funcs)))
         
         for i, obj in enumerate(to_list(objective_funcs)):
             title = obj +": "
@@ -2058,6 +2137,9 @@ class WorkFlow:
                 line = slope*np.array(x)+intercept
                 MAE = mean_absolute_error(np.asarray(x), np.asarray(y))
                 MSE = mean_squared_error(np.asarray(x), np.asarray(y))
+                scores_r2[i] = r2_score(x,y)
+                scores_mae[i] = MAE
+                scores_mse[i] = MSE
                 loc_ax.scatter(x, y, label='Validation', color='red', alpha=0.5, s=25)
                 #loc_ax.plot(x, line)#, label="r$^2$={}\nMAE={}\nMSE={}".format(np.round(r_value,3), np.round(MAE,3), np.round(MSE,5)))
                 title = title + r"r$^2$=" + str(np.round(r2_score(x,y),3))
@@ -2071,8 +2153,8 @@ class WorkFlow:
         if save_loc: plt.savefig(save_loc + obj.replace("/", "-") + '-unseen-validate.pdf', bbox_inches='tight')
         plt.show()
 
-        print("Validation set:\nMAE: {}\nMSE: {}".format(MAE,MSE))
-        return {"r2": r2_score(x,y), "MAE": MAE, "MSE": MSE, "RMSE": np.sqrt(MSE)}
+        print("Validation set:\nMAE: {}\nMSE: {}".format(scores_mae, scores_mse))
+        return {"r2": scores_r2, "MAE": scores_mae, "MSE": scores_mse, "RMSE": np.sqrt(scores_mse)}
 
     def _datasize_performance(self, polynomials, objective, test_size=1, N_min=None, sample_count=5, repeat=100):
         """

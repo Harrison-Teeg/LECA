@@ -256,7 +256,7 @@ def comparative_datasize_performance(
                     plt.hlines(np.power(mean_deviations, 2), 0, N_max, linestyles='-', color='black', label=r'$\eta_{measured}^2$')
             plt.xticks()
             plt.yticks()
-            plt.legend(fontsize=12)
+            plt.legend(fontsize=12, frameon=True)
             if y_lim != None:
                 plt.ylim(y_lim)
             plt.tight_layout()
@@ -459,7 +459,7 @@ def datasize_performance(
             plt.plot(x_fit, -slope*x_fit + eta_squared, label="E(Predict) expect")
             plt.xticks()
             plt.yticks()
-            plt.legend(fontsize=12)
+            plt.legend(fontsize=12, frameon=True)
             plt.tight_layout()
             if save_loc: plt.savefig(save_loc + 'N_plot-' + estimator_name + "-" + obj + ".pdf", bbox_inches="tight")
             plt.show()
@@ -552,7 +552,7 @@ def performance_plot(wf: WorkFlow, metric: str = "MSE") -> None:
         ax.set_ylabel('Model')
         ax.set_xlim(right=1.5)
         ax.set_yticks(y, labels)
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper right', frameon=True)
 
         label_fmt = {'label_type': 'edge', 'padding': 5}
         ax.bar_label(rects_time, labels=sorted_scores.loc['time'].map(lambda x: '{:.2e}'.format(x)), **label_fmt)
@@ -649,7 +649,7 @@ def create_input(feature_dict: Dict[str, List[float]], steps: int=10, temp: Unio
 
 
 def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkFlow,
-        model: Union[str, List[str]], beta_0: float, log:bool=False, min_max:bool=False
+        model: Union[str, List[str]], beta_0: float, log:bool=False, min_max:bool=False, return_std=True
         ) -> pd.DataFrame:
     """
     Predict the ionic conductivity for given electrolyte compositions at a given temperature.
@@ -686,6 +686,11 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
 
         Default value ``False``.
 
+    return_std: bool
+        Whether to return the uncertainty or not.
+
+        Default value  ``True``.
+
     Returns
     -------
         pd.DataFrame
@@ -707,16 +712,25 @@ def predict_conductivity_from_arrhenius_objectives(x_in: pd.DataFrame, wf: WorkF
     inv_temp = x_input['inverse temperature']
     temp_offset = x_input['inverse temperature'] - beta_0
     x_input.drop('inverse temperature', axis=1, inplace=True)
-    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
-    log_cond = (unumpy.uarray(pred['S0'], pred['S0_std'])) \
-                - (unumpy.uarray(pred['S1'], pred['S1_std']))*(temp_offset) \
-                - (unumpy.uarray(pred['S2'], pred['S2_std']))*(temp_offset)**2
+    pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=return_std)
+    if return_std==True:
+        log_cond = (unumpy.uarray(pred['S0'], pred['S0_std'])) \
+                    - (unumpy.uarray(pred['S1'], pred['S1_std']))*(temp_offset) \
+                    - (unumpy.uarray(pred['S2'], pred['S2_std']))*(temp_offset)**2
+    else: 
+        log_cond = pred['S0'] -pred['S1']*temp_offset - pred['S2']*temp_offset**2
     if log == False:
-        cond = unumpy.pow(10,log_cond)
+        if return_std == True:
+            cond = unumpy.pow(10,log_cond)
+        else: 
+            cond = np.power(10,log_cond)
     else:
         cond = log_cond
-    cond = pd.DataFrame({'conductivity':unumpy.nominal_values(cond),
-                         'conductivity_std':unumpy.std_devs(cond)})
+    if return_std==True:
+        cond = pd.DataFrame({'conductivity':unumpy.nominal_values(cond),
+                            'conductivity_std':unumpy.std_devs(cond)})
+    else:
+        cond = pd.DataFrame({'conductivity':cond})
     pred = pd.concat([inv_temp, x_input, cond], axis=1)
     return pred
 
@@ -783,11 +797,12 @@ def predict_conductivity_from_log_conductivity_objective(x_in: pd.DataFrame, wf:
     pred = pd.concat([inv_temp, x_input, cond], axis=1)
     return pred
 
-def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[float]], beta_0_list:List[float], 
+def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict_list :List[Dict[str, List[float]]], beta_0_list:List[float], 
         temperatures:Union[int, float, List[int], List[float]]=20, steps:int=50, ylim:Optional[Tuple[float,float]]=None, 
         multiply_by_salt:bool=False, log:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity',
+        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False, objective:str='log conductivity', 
+        salt_feature: str='x_LiSalt',
         indicate_max:Tuple[Optional[str],Union[int, float],Union[int,float]]=(None,0.8, -1)) -> None:
     """
         1-dimensional slice along one feature for models predicted conductivity / log(conductivity). 
@@ -892,6 +907,11 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
         String name of the objective function for the trained models in the WorkFlow.
 
         Default value ``'log conductivity'``
+    
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
 
     indicate_max: Tuple[Optional[str],Union[int, float],Union[int,float]]
         indicate_max[0] : ``None`` or String. If None do nothing, if String, plot a vertical dashed line 
@@ -927,10 +947,11 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
     min_v = None
     
     for temp in temperatures:
-        x_input, range_key = create_input(feature_dict,steps,temp)
         min_cond = 10
         for model, model_label in zip(models, model_labels):
-            for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
+            for wf, wf_label, beta_0, feature_dict in zip(wfs, wf_labels, beta_0_list, feature_dict_list):
+                print(wf)
+                x_input, range_key = create_input(feature_dict,steps,temp)
                 if beta_0 == -1:
                     specific_prediction = predict_conductivity_from_log_conductivity_objective(x_input, wf, model, log, objective, min_max=min_max)
                 else:
@@ -938,10 +959,10 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
 
                 if multiply_by_salt == True:
                     if log == False:
-                        specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input['x_LiSalt']
-                        specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input['x_LiSalt']
+                        specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input[salt_feature]
+                        specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input[salt_feature]
                     else:
-                        specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input['x_LiSalt'])
+                        specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input[salt_feature])
                     
                 if min(specific_prediction['conductivity']) < min_cond:
                     min_cond = min(specific_prediction['conductivity'])
@@ -964,23 +985,25 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
                 max_c = specific_prediction['conductivity'] + specific_prediction['conductivity_std']*confidence
                 ax.fill_between(specific_prediction[range_key[0]], min_c, max_c, alpha=0.2)
         
-        if indicate_max[2] != -1:
-            min_cond = indicate_max[2]
-        if min_v != None:
-            last_plot = fig.gca().lines[-1]
-            previous_color = last_plot.get_color()
-            ax.vlines(larger_value[min_v], ymin=min_cond, ymax  = larger_cond[min_v], color=previous_color, linestyles='dashed')
-            ax.vlines(larger_value[max_v], ymin=min_cond, ymax  = larger_cond[max_v], color=previous_color, linestyles='dashed')
-            print(larger_value[min_v])
-            print(larger_value[max_v])
-            print()
+                if indicate_max[2] != -1:
+                    min_cond = indicate_max[2]
+                if min_v != None:
+                    last_plot = fig.gca().lines[-1]
+                    previous_color = last_plot.get_color()
+                    ax.vlines(larger_value[min_v], ymin=min_cond, ymax  = larger_cond[min_v], color=previous_color, linestyles='dashed')
+                    ax.vlines(larger_value[max_v], ymin=min_cond, ymax  = larger_cond[max_v], color=previous_color, linestyles='dashed')
+                    print(larger_value[min_v])
+                    print(larger_value[max_v])
+                    print()
                 
     if ylim == None:
         pass
     else:
         ax.set_ylim(ylim)
-
-    ax.legend(loc='upper right')
+    if log:
+        ax.legend(loc='lower right', frameon=True)
+    else:
+        ax.legend(loc='upper right', frameon=True)
     ax.set_xlabel('$'+range_key[0].replace('_','_\\mathrm{')+'}$')
     if multiply_by_salt == True:
         if log==False:
@@ -989,9 +1012,9 @@ def plot_1D(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, List[
             ax.set_ylabel('$\log(\sigma)$')
     else:
         if log==False:
-            ax.set_ylabel('$\sigma/x_\\mathrm{LiSalt}$ [S/cm]')
+            ax.set_ylabel('$\sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$ [S/cm]')
         else:
-            ax.set_ylabel('$\log(\sigma/x_\\mathrm{LiSalt})$')
+            ax.set_ylabel('$\log(\sigma/'+salt_feature.replace('_','_\\mathrm{')+'})$')
             
     if log==True:
         ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -1015,7 +1038,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         beta_0_list:List[float], steps:int=50, objectives:List[str]=['S0', 'S1', 'S2'], 
         ylim:Optional[Tuple[float,float]]=None, multiply_by_salt:bool=False, 
         model_labels:Optional[List[str]]=None, wf_labels:Optional[List[str]]=None, 
-        min_max:bool=False, confidence:float = 1.0, save_loc: Union[str, bool] = False) -> None:
+        min_max:bool=False, confidence:float = 1.0, salt_feature: str='x_LiSalt', save_loc: Union[str, bool] = False) -> None:
     """
         1-dimensional slice along one feature for models predicted arrhenius objectives S0, S1 and S2.
         Three plots will be rendered which show the S0, S1 and S2 predictions for the argument defined
@@ -1088,6 +1111,11 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
 
         Default value ``1.0``
 
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
+
     save_loc: Union[str, bool]
         Boolean or string to indicate whether and where to to save the plot. If ``False`` no plot is saved, otherwise:
         The naming scheme follows: save_loc+'slice_1D_Sx_{varied_feature}.pdf
@@ -1121,7 +1149,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         for wf, wf_label, beta_0 in zip(wfs, wf_labels, beta_0_list):
             pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3}, min_max=min_max, return_std=True)
             if multiply_by_salt == True:
-                pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
+                pred['S0'] = pred['S0'] + np.log10(x_input[salt_feature])
             specific_prediction = pd.concat([x_input, pred], axis=1)
             for i in range(len_o): 
                 obj = objectives[i]
@@ -1135,7 +1163,7 @@ def plot_1D_Sx(wfs: List[WorkFlow], models: List[str], feature_dict:Dict[str, Li
         ax[i].set_ylim(ylim)
     
     for i in range(len_o):
-        ax[i].legend(loc='best')
+        ax[i].legend(loc='best', frameon=True)
         ax[i].set_xlabel('$'+range_key[0].replace('_','_\\mathrm{')+'}$')
         ax[i].set_ylabel(objectives[i])
         ax[i].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -1148,7 +1176,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         temp:Union[int,float], beta_0:Union[int,float], steps:int=50, 
         restriction: List[str] =['x_EC', 'x_EMC', 'x_LiSalt'], 
         multiply_by_salt:bool=False, log:bool=False, focus:Union[bool,pd.DataFrame]=False, 
-        save_loc: Union[str, bool] = False, objective:str='log conductivity', **kwargs
+        save_loc: Union[str, bool] = False, objective:str='log conductivity', salt_feature:str='x_LiSalt', **kwargs
         ) -> None:
     """
         2-dimensional slice along two features for predicted conductivity / log(conductivity). 
@@ -1222,6 +1250,11 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         String name of the objective function for the trained models in the WorkFlow.
 
         Default value ``'log conductivity'``
+    
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
 
     **kwargs:
         Keyword arguments passed to matplotlib.pyplot.countourf.
@@ -1250,10 +1283,10 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
         specific_prediction = predict_conductivity_from_arrhenius_objectives(x_input, wf, model, beta_0, log)
     if multiply_by_salt == True:
         if log == False:
-            specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input['x_LiSalt']
-            specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input['x_LiSalt']
+            specific_prediction['conductivity'] = specific_prediction['conductivity']*x_input[salt_feature]
+            specific_prediction['conductivity_std'] = specific_prediction['conductivity_std']*x_input[salt_feature]
         else:
-            specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input['x_LiSalt'])
+            specific_prediction['conductivity'] = specific_prediction['conductivity']+np.log10(x_input[salt_feature])
 
     #apply restrictions
     applied_restriction = np.sum(specific_prediction[restriction], axis=1)
@@ -1262,6 +1295,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
     
     for i in index:
         specific_prediction.iloc[i,index_conductivity] = 0
+
     
     data = np.array(specific_prediction[range_keys])
     conductivity = np.array(specific_prediction['conductivity'])
@@ -1281,9 +1315,9 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
             fig.colorbar(cont, cax=cax,label='$\log(\sigma)$', format="%1.3f")
     else:
         if log==False:
-            fig.colorbar(cont, cax=cax,label='$ \sigma/x_\\mathrm{LiSalt}$ [S/cm]', format="%1.3f")
+            fig.colorbar(cont, cax=cax,label='$ \sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$ [S/cm]', format="%1.3f")
         else:
-            fig.colorbar(cont, cax=cax,label='$\log(\sigma/x_\\mathrm{LiSalt}$)', format="%1.3f")
+            fig.colorbar(cont, cax=cax,label='$\log(\sigma/'+salt_feature.replace('_','_\\mathrm{')+'}$)', format="%1.3f")
     
     if isinstance(focus, pd.DataFrame):
         ax.scatter(focus[range_keys[0]],focus[range_keys[1]], 150, marker='o', facecolors='none', edgecolors='black', linewidth=2)
@@ -1294,7 +1328,7 @@ def plot_2D(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, L
 def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str, List[float]], 
         steps:int=50, restriction: List[str] =['x_EC', 'x_EMC', 'x_LiSalt'], 
         multiply_by_salt:bool=False, focus:Union[bool,pd.DataFrame]=False, 
-        save_loc: Union[str, bool] = False, objectives:List[str]=['S0', 'S1', 'S2'], 
+        save_loc: Union[str, bool] = False, objectives:List[str]=['S0', 'S1', 'S2'], salt_feature: str='x_LiSalt',
         **kwargs) -> None:
     """
         2-dimensional slice along two features for predicted Arrhenius objective values (typically S0, S1 and S2).
@@ -1352,6 +1386,11 @@ def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str
 
         Default value ``['S0', 'S1', 'S2']``
 
+    salt_feature: str
+        String name of the feature that corresponds to the total salt content. Only used when multiply_by_salt=True.
+
+        Default value ``'x_LiSalt'``
+
     **kwargs:
         Keyword arguments passed to matplotlib.pyplot.countourf.
 
@@ -1380,7 +1419,7 @@ def plot_2D_Sx(wf: WorkFlow, model: Union[str, List[str]], feature_dict:Dict[str
     # Build prediction dataframe
     pred = wf.predict(x_input, {'S0': m1, 'S1': m2, 'S2': m3})
     if multiply_by_salt == True:
-        pred['S0'] = pred['S0'] + np.log10(x_input['x_LiSalt'])
+        pred['S0'] = pred['S0'] + np.log10(x_input[salt_feature])
     specific_prediction = pd.concat([x_input, pred], axis=1)
 
     #apply restrictions
@@ -1441,10 +1480,14 @@ def visualize_arrhenius_fit(
         colors: Optional[List[str]] = None,
         y_label: Optional[str] = None,
         individual_data_df:Optional[pd.DataFrame]=None,
+        filtered_data_df:Optional[pd.DataFrame]=None,
         confidence:float = 1.0,
         save_loc: Union[str, bool] = False,
         save_idx: Union[int, float, str]=0,
-        title: Optional[str] = None
+        save_format: Optional[str]='pdf',
+        title: Optional[str] = None,
+        plot_data_info: Optional[bool] = False,
+        **kwargs
         ) -> None:
     '''
         Can be used to visualize arrhenius fit or predicted arrhenius fits.
@@ -1502,6 +1545,12 @@ def visualize_arrhenius_fit(
                 
                 Default value ``None``
 
+            filtered_data : Optional[pd.DataFrame]
+                DataFrame containing the true individual measured values for the ionic conductivity, which were filtered out. If ``None`` is provided 
+                no individual experimental data is plotted.
+                
+                Default value ``None``
+
             confidence: float
                 Scalar value to multiply the estimated uncertainty. By default this value is ``1.0`` which results in the
                 plotted errorbars showing one standard-deviation. E.g. ``confidence=1.96`` would then reflect an
@@ -1532,7 +1581,8 @@ def visualize_arrhenius_fit(
         
     '''
     true_label_mean = 'Mean Exp. data'
-    true_label = 'Exp. data'
+    true_label_used_data = 'Fitted Exp. data'
+    true_label_filtered_data = 'Removed Exp. data'
     
     if y_label == None:
         y_label = true_objective
@@ -1548,37 +1598,45 @@ def visualize_arrhenius_fit(
     fig, ax = plt.subplots(figsize=(6,4))
     
     for x_arrh, index, label in zip(x_arrhenius, indices, labels):
-        
         formulation = x_arrh.loc[index]
         i=0
-        for true_x in true_x_dfs:
-            if isinstance(true_x, pd.DataFrame) or isinstance(true_x, pd.Series):
-                #exp_indices = [i if np.array_equal(true_x[features].iloc[i], formulation[features]) is True else 0 for i in range(len(true_x[features]))]
-                exp_indices = np.where(np.array(true_x[features].sum(axis=1)) == formulation[features].sum())
-                #exp_indices = np.where(np.array(exp_indices) != 0)
-                ax.errorbar(true_x['inverse temperature'].iloc[exp_indices], 
-                             true_x[true_objective].iloc[exp_indices],
-                             yerr=true_x[true_objective+'_std'].iloc[exp_indices]*confidence, 
-                             fmt='o', color=colors[i], markerfacecolor='white', 
-                             label=true_label_mean)
-                true_label_mean=''
-                i+=1
-        
-        if isinstance(individual_data_df, pd.DataFrame) or isinstance(individual_data_df, pd.Series):
-            exp_indices = np.where(np.array(individual_data_df[features].sum(axis=1)) == formulation[features].sum())
-            ax.plot(individual_data_df['inverse temperature'].iloc[exp_indices], 
-                             individual_data_df[true_objective].iloc[exp_indices], 'rx', label=true_label)
-            true_label=''
 
         T, conductivity = predict_arrhenius_fit(formulation, beta_0)
 
-        ax.plot(T, unumpy.nominal_values(conductivity), '-', label=label)
+        ax.plot(T, unumpy.nominal_values(conductivity), '-', label=label, **kwargs)
         if plot_std==True:
             min_c = unumpy.nominal_values(conductivity)-unumpy.std_devs(conductivity)*confidence
             max_c = unumpy.nominal_values(conductivity)+unumpy.std_devs(conductivity)*confidence
             last_plot = fig.gca().lines[-1]
             previous_color = last_plot.get_color()
             ax.fill_between(T, min_c, max_c, color=previous_color, alpha=0.2)
+        
+
+    for true_x in true_x_dfs:
+        if isinstance(true_x, pd.DataFrame) or isinstance(true_x, pd.Series):
+            #exp_indices = [i if np.array_equal(true_x[features].iloc[i], formulation[features]) is True else 0 for i in range(len(true_x[features]))]
+            exp_indices = np.where(np.isclose(np.array(true_x[features].sum(axis=1)), formulation[features].sum()))
+            #exp_indices = np.where(np.array(exp_indices) != 0)
+            ax.errorbar(true_x['inverse temperature'].iloc[exp_indices], 
+                            true_x[true_objective].iloc[exp_indices],
+                            yerr=true_x[true_objective+'_std'].iloc[exp_indices]*confidence, 
+                            fmt='o', color=colors[i], markerfacecolor='white', 
+                            label=true_label_mean)
+            true_label_mean=''
+            i+=1
+    
+    if isinstance(individual_data_df, pd.DataFrame) or isinstance(individual_data_df, pd.Series):
+        exp_indices = np.where(np.isclose(np.array(individual_data_df[features].sum(axis=1)), formulation[features].sum()))
+        ax.plot(individual_data_df['inverse temperature'].iloc[exp_indices], 
+                            individual_data_df[true_objective].iloc[exp_indices], 'kx', label=true_label_used_data, **kwargs)
+        true_label=''
+
+    if isinstance(filtered_data_df, pd.DataFrame) or isinstance(filtered_data_df, pd.Series):
+        exp_indices = np.where(np.isclose(np.array(filtered_data_df[features].sum(axis=1)), formulation[features].sum()))
+        ax.plot(filtered_data_df['inverse temperature'].iloc[exp_indices], 
+                            filtered_data_df[true_objective].iloc[exp_indices], 'rx', label=true_label_filtered_data, **kwargs)
+        true_label=''
+
             
     ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         
@@ -1586,16 +1644,17 @@ def visualize_arrhenius_fit(
     ymin,ymax = ax.get_ylim()
     xmin = xmin*1.03
     ymin = ymin/1.03
-    ax.text(xmin, ymin, s=str(x_arrhenius[0].loc[index]), fontsize=8)
+    if plot_data_info:
+        ax.text(xmin, ymin, s=str(x_arrhenius[0].loc[index]), fontsize=8)
     
     if title != None:
         ax.set_title(title)
 
-    ax.legend(loc='upper right', fontsize=12)
+    ax.legend(loc='upper right', fontsize=12, frameon=True)
     ax.set_xlabel('1000 / $T$ [1/K]')
     ax.set_ylabel(y_label)
     
-    if save_loc: plt.savefig(save_loc+'arrhenius_fit_{}.pdf'.format(save_idx), bbox_inches="tight")
+    if save_loc: plt.savefig(save_loc+'arrhenius_fit_{}.{}'.format(save_idx, save_format), bbox_inches="tight")
     plt.show()
     
 def extract_results(wf:WorkFlow) -> pd.DataFrame:

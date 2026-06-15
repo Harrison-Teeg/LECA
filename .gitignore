@@ -16,3 +16,4 @@ docs/_build/
 docs/_static/
 docs/source/generated/
 LECA.egg-info/
+.eggs/

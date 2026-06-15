@@ -27,11 +27,11 @@ With the following python libraries:
         - Seaborn 0.11.2+
         - GPyOpt 1.2.6+
 
-If you want to use the Active Learning module you need to install the separate PyAL library from source with:
+If you want to use the Active Learning module you need to install the separate PyALAF library from source with:
 
 .. code-block:: bash
 
-   pip install git+https://github.com/TibMont/PyAL.git
+   pip install git+https://github.com/TibMont/PyALAF.git
 
 Installation
 ============

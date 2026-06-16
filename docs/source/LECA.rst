@@ -51,6 +51,16 @@ Model Analysis
    LECA.analyze.visualize_arrhenius_fit
    LECA.analyze.extract_results
 
+Active Learning
+======================
+
+.. autosummary::
+   :toctree: generated/
+   :template: class.rst
+
+   LECA.active_learning.ActiveLearner
+   LECA.active_learning.InteractiveModel
+
 LECA Custom Estimators
 ======================
 

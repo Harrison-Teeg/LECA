@@ -21,15 +21,9 @@ from sklearn.base import clone
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
-def initialize_dataset(pool=None):
-    pass
-
-def features_to_composition():
-    pass
-
 class ActiveLearner:
     """
-    Interface object between LECAs WorkFlow object and the PyAL library. 
+    Interface object between LECAs WorkFlow object and the PyALAF library. 
 
     Parameters
     ----------
@@ -74,6 +68,12 @@ class ActiveLearner:
 
     estimator_names: List[str]
         Name of all estimators used in the LECA workflow.
+
+    suggested_data: np.ndarray
+        Suggested data to add to the training set, which was not evaluated yet.
+
+    collected_data: np.ndarray
+        Collected data, which was already evaluated but not added to the LECA workflow.
     """
     def __init__(self, wf: fit.WorkFlow, data_pool: Optional[Union[pd.DataFrame, np.ndarray]]=None) -> None:
         self.wf = wf
@@ -83,16 +83,20 @@ class ActiveLearner:
         #Copy data because we might modify it and do not want to modify the workflow directly
         self.active_set_X = copy.deepcopy(self.wf.X_unscaled)
         self.active_set_y = copy.deepcopy(self.wf.y)
+        self.active_std = copy.deepcopy(self.wf.std)
 
         try:
             self.test_set_X = copy.deepcopy(self.wf.X_validate_unscaled)
             self.test_set_y = copy.deepcopy(self.wf.y_validate)
+            self.test_std = copy.deepcopy(self.wf.std_validate)
         except:
             self.test_set_X = pd.DataFrame()
             self.test_set_y = pd.DataFrame()
+            self.test_std = pd.DataFrame()
 
         self.X = pd.concat([self.active_set_X, self.test_set_X])
         self.y = pd.concat([self.active_set_y, self.test_set_y])
+        self.std = pd.concat([self.active_std, self.test_std])
 
         self.data_pool = data_pool
 
@@ -107,6 +111,7 @@ class ActiveLearner:
             self.polynomial_degree = 3
 
         self.suggested_data = None
+        self.collected_data = pd.DataFrame()
 
 
     def data_importance(self, 
@@ -923,117 +928,139 @@ class ActiveLearner:
                         alpha: float=10.0, lim:Optional[np.ndarray]=None, batch_size:int=10,
                         random_state: Optional[int] = None, opt_method: Optional[str] = 'PSO',
                         **kwargs):
+        """Performs a single active learning step.
+
+        Parameters
+        ----------
+        estimator : Optional[str], optional
+            Name of the LECA estimator to use for AL
+            
+            Default value ``None``
+        objective_funcs : Optional[Union[str, List[str]]], optional
+            Objective functions to use for AL.
+
+            Default value ``None``
+        acquisition_function : Optional[Union[str, List[str]]], optional
+            Name of the acquisition function. Chose from GSx, GSy, iGS, ideal, max for non-GPR models 
+            and UCB, PI, EI additionally for GPR models.
+
+            Default value ``ideal``
+        aggregation_function : Optional[callable], optional
+            An aggregation function, which combines multiple objectives into a single one.
+
+            Default value ``None``
+        alpha : float, optional
+            Hyperparameter for the acquisition function. Not all acquisition functions make use of it.
+            For more details see the PyALAF documentation.
+
+            Default value 10
+        lim : Optional[np.ndarray], optional
+            Boundaries for the search space of active learning. ``None`` means an automatic determination of the boundaries.
+            The format needs to be [[l1, l2, ...], [u1, u2, ...]]
+            
+            Default value ``None``
+        batch_size : int, optional
+            Size of the batch to suggest via AL
+
+            Default value 10
+        random_state : Optional[int], optional
+            Random state
+
+            Default value ``None``
+        opt_method : Optional[str], optional
+            Optimization method to search for the maximum of acquisition functions. 
+            Possible options are PSO (Particle Swarm Optimization, global optimization)
+            and lbfgs (local optimization).
+            
+            Default value ``PSO``
+
+        Returns
+        -------
+        np.nd_array
+            All feature values that belong to sampled data points in the order of sampling.
+        dict
+            Results of the AL.
+
+        Raises
+        ------
+        Exception
+            Pool-based learning not implemented yet. The data_pool attribute must be ``None``.
+        """
         
         if objective_funcs == None: objective_funcs = self.objective_funcs
         rng = np.random.default_rng(seed=random_state)
 
         if aggregation_function == None:
-            print('An aggregation function is NOT used.')
-            #Evaluate for each objective function
-            for obj in to_list(objective_funcs):
-                print('Active Learning for objective: {}'.format(obj))
-                if estimator == None: estimator = self.wf.best_model[obj]
-
-                #Get a cloned model
-                model = clone(self.wf.get_estimator(estimator, obj))
-                
-                #Interactively enter new data
-                evaluation_model = InteractiveModel(features=self.X, objective=self.y[obj])
-
-                #Pool based learning
-                if isinstance(self.data_pool, np.ndarray):
-
-                    #Not supported right now
-                    #samples, result = run_batch_learning(evaluation_model, 
-                    #    regression_model=model,
-                    #    acquisition_function = acquisition_function,
-                    #    pool = self.data_pool, 
-                    #    batch_size = batch_size,
-                    #    noise=0.0,
-                    #    initial_samples=np.concatenate([self.active_set_X, self.test_set_X]),
-                    #    active_learning_steps=1,
-                    #    lim=None,
-                    #    alpha=alpha,
-                    #    random_state=random_state,
-                    #    return_samples=True,
-                    #    initialization='data',
-                    #    test_set = None,
-                    #    poly_degree = self.polynomial_degree,
-                    #    fictive_noise_level = 0,
-                    #    calculate_test_metrics = False)
-                    pass
-                #Population based learning
-                else:
-                    #Not supported right now
-                    #samples, result = run_continuous_batch_learning(evaluation_model, 
-                    #    regression_model=model,
-                    #    acquisition_function = acquisition_function,
-                    #    batch_size = batch_size,
-                    #    noise=0.0,
-                    #    initial_samples=np.array(self.X),
-                    #    active_learning_steps=1,
-                    #    lim=lim,
-                    #    alpha=alpha,
-                    #    random_state=random_state,
-                    #    return_samples=True,
-                    #    initialization='data',
-                    #    poly_degree = self.polynomial_degree,
-                    #    fictive_noise_level = 0,
-                    #    calculate_test_metrics = False)
-                    pass
+            print('An aggregation function is NOT used. Assuming identity aggregation function')
+            aggregation_function = identity_aggregation_fn
+            
         else:
             print('Using an aggregation function.')
-            current_estimators = []
-            evaluation_models = []
-            for obj in to_list(objective_funcs):
-                model = clone(self.wf.get_estimator(estimator, obj))
-                current_estimators.append(model)
-                evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
-                evaluation_models.append(evaluation_model)
 
-            if isinstance(self.data_pool, np.ndarray):
-                #Not supported right now
-                print('Assuming pool-based learning.')
-                pass
+        current_estimators = []
+        evaluation_models = []
+        for obj in to_list(objective_funcs):
+            model = clone(self.wf.get_estimator(estimator, obj))
+            current_estimators.append(model)
+            evaluation_model = PoolModel(features=self.X, objective=self.y[obj])
+            evaluation_models.append(evaluation_model)
 
+        if isinstance(self.data_pool, np.ndarray):
+            raise Exception('Pool-based learning not implemented yet')
+
+        else:
+            if len(np.array(self.X).shape) == 1:
+                X_input = np.array(self.X).reshape(-1, 1)
             else:
-                print('Assuming population-based learning.')
-                sample_x, obs_dict, result = run_continuous_batch_learning_multi(evaluation_models, 
-                aggregation_function, 
-                current_estimators,
-                acquisition_function = acquisition_function,
-                opt_method = opt_method,
-                batch_size = batch_size,
-                noise=0,
-                #Consider whole data set here, because otherwise AL might suggest to evaluate already evaluated data next
-                initial_samples=np.array(self.X), 
-                active_learning_steps=1,
-                lim_features=lim,
-                alpha=alpha,
-                random_state=random_state,
-                initialization='data',
-                poly_degree = self.polynomial_degree,
-                calculate_test_metrics=False,
-                verbose=False,
-                single_update=True,
-                **kwargs
-                )
-                self.suggested_data = sample_x[len(self.X):]
-                return sample_x, obs_dict 
+                X_input = np.array(self.X)
+            print('Assuming population-based learning.')
+            sample_x, y_val, obs_dict = run_continuous_batch_learning_multi(evaluation_models, 
+            aggregation_function, 
+            current_estimators,
+            acquisition_function = acquisition_function,
+            opt_method = opt_method,
+            batch_size = batch_size,
+            noise=0,
+            #Consider whole data set here, because otherwise AL might suggest to evaluate already evaluated data next
+            initial_samples=X_input, 
+            active_learning_steps=1,
+            lim_features=lim,
+            alpha=alpha,
+            random_state=random_state,
+            initialization='data',
+            poly_degree = self.polynomial_degree,
+            calculate_test_metrics=False,
+            verbose=False,
+            single_update=True,
+            **kwargs
+            )
+            self.suggested_data = sample_x[len(self.X):]
+            return sample_x, y_val, obs_dict 
             
     
     def get_suggested_data(self):
+        """Get suggested data.
+
+        Returns
+        -------
+        np.nd_array
+            Array with feature values of suggested data
+        """
         return self.suggested_data
     
-    def add_suggested_data(self, y):
+    def add_suggested_data(self, add_data):
         if not isinstance(self.suggested_data, np.ndarray):
             raise Exception("There is no suggested data for which objective values can be added")
 
-        if len(self.suggested_data) != len(y):
+        if len(self.suggested_data) != len(add_data):
             raise Exception("The provided data needs to be of the length of the suggested data")
         
         x = pd.DataFrame(self.suggested_data, columns=self.X.columns)
-        y = pd.DataFrame(y, columns=self.y.columns)
+        y = pd.DataFrame(add_data[self.objective_funcs], columns=self.y.columns)
+        #std = pd.DataFrame(add_data[self.std.columns], columns=self.std.columns)
+
+        df_collected = add_data
+        self.collected_data = pd.concat([self.collected_data, df_collected])
 
         self.active_set_X = pd.concat([self.active_set_X, x]).reset_index(drop=True)
         self.active_set_y = pd.concat([self.active_set_y, y]).reset_index(drop=True)
@@ -1043,17 +1070,168 @@ class ActiveLearner:
 
         self.suggested_data = None
 
-    def update_wf():
-        '''
-        Extend the training set of the LECA Workflow
-        '''
-        raise Exception('This method is not implemented yet')
+    def get_collected_data(self):
+        """Get collected data.
 
-    def automatic_al():
-        '''
-        Perform automatic active learning and labeling of data
-        '''
-        raise Exception('This method is not implemented yet')
+        Returns
+        -------
+        pd.DataFrame
+            Data Frame with all data collected during single or multiple active learning runs if not already added to the LECA workflow.
+        """
+        return self.collected_data
+
+    def update_wf(self):
+        """
+        Add the collected data to the LECA workflow.
+        """
+
+        self.wf.extend_data_set(self.collected_data)
+        self.collected_data = pd.DataFrame()
+        print('Data successfully added to the LECA workflow')
+    
+    def automatic_al(self, 
+                        estimator: Optional[str] = None,
+                        objective_funcs: Optional[Union[str, List[str]]] = None, 
+                        acquisition_function: Optional[Union[str, List[str]]]='ideal',
+                        data_evaluation_models: Optional[callable] = None,
+                        aggregation_function: Optional[callable]=None, 
+                        alpha: float=10.0, lim:Optional[np.ndarray]=None, batch_size:int=10,
+                        active_learning_steps:int=2,
+                        random_state: Optional[int] = None, opt_method: Optional[str] = 'PSO',
+                        **kwargs):
+        """Perform automatic active learning and labeling of data
+
+        Parameters
+        ----------
+        estimator : Optional[str], optional
+            Name of the LECA estimator to use for AL
+            
+            Default value ``None``
+        objective_funcs : Optional[Union[str, List[str]]], optional
+            Objective functions to use for AL.
+
+            Default value ``None``
+        acquisition_function : Optional[Union[str, List[str]]], optional
+            Name of the acquisition function. Chose from GSx, GSy, iGS, ideal, max for non-GPR models 
+            and UCB, PI, EI additionally for GPR models.
+
+            Default value ``ideal``
+
+        data_evaluation_models : Optional[callable], optional
+            Definition of a data_evaluation_model, which can be used to automatically combine active learning and data acquisition.
+            If None is used, an Interactive Model is chosen, for which data needs to be entered manually.
+
+            Default value ``None``
+            
+        aggregation_function : Optional[callable], optional
+            An aggregation function, which combines multiple objectives into a single one.
+
+            Default value ``None``
+        alpha : float, optional
+            Hyperparameter for the acquisition function. Not all acquisition functions make use of it.
+            For more details see the PyALAF documentation.
+
+            Default value 10
+        lim : Optional[np.ndarray], optional
+            Boundaries for the search space of active learning. ``None`` means an automatic determination of the boundaries.
+            The format needs to be [[l1, l2, ...], [u1, u2, ...]]
+            
+            Default value ``None``
+        batch_size : int, optional
+            Size of the batch to suggest via AL
+
+            Default value 10
+
+        active_learning_steps : int, optional
+            Size of the batch to suggest via AL
+
+            Default value 2
+
+            Default value ``None``
+        opt_method : Optional[str], optional
+            Optimization method to search for the maximum of acquisition functions. 
+            Possible options are PSO (Particle Swarm Optimization, global optimization)
+            and lbfgs (local optimization).
+            
+            Default value ``PSO``
+
+        Returns
+        -------
+        np.nd_array
+            All feature values that belong to sampled data points in the order of sampling.
+        dict
+            Results of the AL.
+
+        Raises
+        ------
+        Exception
+            Pool-based learning not implemented yet. The data_pool attribute must be ``None``.
+        """
+        
+        if objective_funcs == None: objective_funcs = self.objective_funcs
+        rng = np.random.default_rng(seed=random_state)
+
+        if aggregation_function == None:
+            print('An aggregation function is NOT used. Assuming identity aggregation function')
+            aggregation_function = identity_aggregation_fn
+            
+        else:
+            print('Using an aggregation function.')
+
+        current_estimators = []
+        evaluation_models = []
+        for i, obj in enumerate(to_list(objective_funcs)):
+            model = clone(self.wf.get_estimator(estimator, obj))
+            current_estimators.append(model)
+            if data_evaluation_models == None:
+                evaluation_model = InteractiveModel(features=self.X, objective=self.y[obj])
+            else:
+                evaluation_model = data_evaluation_models[i]
+            evaluation_models.append(evaluation_model)
+
+        if isinstance(self.data_pool, np.ndarray):
+            raise Exception('Pool-based learning not implemented yet')
+
+        else:
+            if len(np.array(self.X).shape) == 1:
+                X_input = np.array(self.X).reshape(-1, 1)
+            else:
+                X_input = np.array(self.X)
+            print('Assuming population-based learning.')
+            sample_x, y_val, obs_dict = run_continuous_batch_learning_multi(evaluation_models, 
+            aggregation_function, 
+            current_estimators,
+            acquisition_function = acquisition_function,
+            opt_method = opt_method,
+            batch_size = batch_size,
+            noise=0,
+            #Consider whole data set here, because otherwise AL might suggest to evaluate already evaluated data next
+            initial_samples=X_input, 
+            active_learning_steps=active_learning_steps,
+            lim_features=lim,
+            alpha=alpha,
+            random_state=random_state,
+            initialization='data',
+            poly_degree = self.polynomial_degree,
+            calculate_test_metrics=False,
+            verbose=False,
+            single_update=False,
+            **kwargs
+            )
+            
+            x = pd.DataFrame(sample_x[len(self.X):], columns=self.X.columns)
+            y = pd.DataFrame(y_val.T[len(self.X):], columns=self.y.columns)
+
+            df_collected = pd.concat([x,y], axis=1)
+            self.collected_data = pd.concat([self.collected_data, df_collected])
+
+            self.active_set_X = pd.concat([self.active_set_X, x]).reset_index(drop=True)
+            self.active_set_y = pd.concat([self.active_set_y, y]).reset_index(drop=True)
+
+            self.X = pd.concat([self.X, x]).reset_index(drop=True)
+            self.y = pd.concat([self.y, y]).reset_index(drop=True)
+            
+            return sample_x, y_val, obs_dict
 
 
 class InteractiveModel():
@@ -1067,6 +1245,18 @@ class InteractiveModel():
         self.objective = np.array(objective).flatten()
 
     def evaluate(self, grid, **kwargs):
+        """Evaluate the Interactive Model on provided data points.
+
+        Parameters
+        ----------
+        grid : np.ndarray
+            Data points for which to evaluate the InteractiveModel. Data points can be on a grid or freely chosen.
+
+        Returns
+        -------
+        np.ndarray
+            Objective values observed at the grid points.
+        """
         grid = np.array(grid)
         if len(grid.shape)==1:
             grid = grid.reshape(1,-1)

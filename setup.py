@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 
 DISTNAME = "LECA"
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 DESCRIPTION = (
     "A python library for modeling" 
     "liquid electrolyte behavior."

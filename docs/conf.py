@@ -21,11 +21,11 @@ sys.path.insert(0, os.path.abspath('../..'))
 # -- Project information -----------------------------------------------------
 
 project = 'Liquid Electrolyte Composition Analysis'
-copyright = '2022, Harrison Martin'
+copyright = '2026, Harrison Martin'
 author = 'Harrison Martin'
 
 # The full version, including alpha/beta/rc tags
-release = '0.2'
+release = '0.0.2'
 
 
 # -- General configuration ---------------------------------------------------

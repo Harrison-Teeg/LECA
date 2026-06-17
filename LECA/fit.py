@@ -214,6 +214,8 @@ class WorkFlow:
                 self.groups = groups.reset_index(drop=True)
             else:
                 X, X_validate, y, y_validate, std, std_validate = train_test_split(X,y,std, test_size=validation_holdout, random_state=random_state)
+                self.train_index = X.index
+                validate_index = X_validate.index
         # If validation_holdout == 0: We still need to shuffle our data
         else:
             if composition_features != None: # If we want to train/validate split considering composition groups:
@@ -221,6 +223,7 @@ class WorkFlow:
                 self.groups = groups.reset_index(drop=True)
             else:
                 X,y,std = shuffle(X,y,std, random_state=random_state)
+            self.train_index = X.index
         
 
         #Generate polynomials
@@ -320,6 +323,8 @@ class WorkFlow:
                 self.groups = groups.reset_index(drop=True)
             else:
                 X, X_validate, y, y_validate, std, std_validate = train_test_split(X,y,std, test_size=validation_holdout, random_state=random_state)
+                self.train_index = X.index
+                validate_index = X_validate.index
         # If validation_holdout == 0: We still need to shuffle our data
         else:
             if composition_features != None: # If we want to train/validate split considering composition groups:
@@ -327,6 +332,7 @@ class WorkFlow:
                 self.groups = groups.reset_index(drop=True)
             else:
                 X,y,std = shuffle(X,y,std, random_state=random_state)
+            self.train_index = X.index
         
 
         #Generate polynomials
@@ -363,8 +369,8 @@ class WorkFlow:
         composition_features = self.composition_features
         data = pd.concat([self.data, data_new]).reset_index(drop=True)
         
-        X = self.data[features]
-        y = self.data[objective_list]
+        X = data[features]
+        y = data[objective_list]
         std = data[[obj + "_std" for obj in objective_list if obj + "_std" in data.columns]]
 
         # Create a dataframe of data index -> group (where group represents a unique ID for a unique composition)
@@ -372,10 +378,11 @@ class WorkFlow:
 
         print("New indices: {}".format(data.iloc[len(self.data):].index))
         train_index = np.concatenate([self.train_index, data.iloc[len(self.data):].index])
+        self.train_index = train_index
 
         self.data = data
-
         X = X.iloc[train_index]
+
         y = y.iloc[train_index]
         std = std.iloc[train_index]
         if composition_features != None:

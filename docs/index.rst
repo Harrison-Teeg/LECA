@@ -6,6 +6,7 @@
    :caption: Introduction:
 
    source/synthetic_introduction
+   source/active_learning
 
 .. toctree::
    :maxdepth: 3
